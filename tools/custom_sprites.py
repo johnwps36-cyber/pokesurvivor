@@ -22,8 +22,8 @@ CHARS = {'zenitsu': 9001, 'ichigo': 9002,
          'ichigo_shinbankai': 9104, 'ichigo_vastolorde': 9105}   # 變身造型
 ANIMS = {'idle': 'Idle', 'walk': 'Walk', 'attack': 'Attack', 'shoot': 'Shoot',
          'charge': 'Charge', 'hurt': 'Hurt', 'faint': 'Faint'}
-# 身高（像素，按每張圖格仔高度嘅中位數計）。
-HEIGHT = {'Idle': 48, 'Walk': 48, 'Attack': 48, 'Shoot': 48, 'Charge': 48, 'Hurt': 48, 'Faint': 48}
+# 身高（像素，按每張圖格仔高度嘅中位數計）。32 ≈ 寶可夢人形角色（路卡利歐約 27–29）
+HEIGHT = {'Idle': 32, 'Walk': 32, 'Attack': 32, 'Shoot': 32, 'Charge': 32, 'Hurt': 32, 'Faint': 32}
 # 某啲動作只用頭幾格（例如 Gemini 將待機畫成踏步，就只要第 1 格）：(角色, 動作) -> 格數
 KEEP = {('ichigo_shinbankai', 'Idle'): 1}
 # 每格時間（1/60 秒），按格數平均分配
