@@ -104,17 +104,19 @@ G.MenuUI = (() => {
   function openDex() {
     G.UI.show('scr-dex', true);
     const s = G.DB.save;
-    if (dexSel == null) { dexSel = s.partner; dexGen = G.DEX_BY[s.partner].gen; }
+    if (dexSel == null) { dexSel = s.partner; dexGen = G.DEX_BY[s.partner].custom ? 0 : G.DEX_BY[s.partner].gen; }
     const owned = Object.keys(s.owned).filter(d => G.DEX_BY[d]).length;
     $('dex-total').textContent = `${owned} / ${G.DEX.length}`;
 
     // Pestañas de generación, con cuántos tienes de cada una.
     const tabs = $('dex-gens');
     tabs.innerHTML = '';
-    GEN_NAMES.forEach((name, i) => {
-      const g = i + 1;
-      const total = G.DEX.filter(p => p.gen === g).length;
-      const have = G.DEX.filter(p => p.gen === g && s.owned[p.dex]).length;
+    // 自製角色（mod）：放喺最前面嘅「自製」分頁，唔再撈埋關都
+    const inTab = (p, g) => g === 0 ? !!p.custom : p.gen === g && !p.custom;
+    (G.DEX.some(p => p.custom) ? ['自製', ...GEN_NAMES] : GEN_NAMES).forEach((name, i, arr) => {
+      const g = arr.length > GEN_NAMES.length ? i : i + 1;
+      const total = G.DEX.filter(p => inTab(p, g)).length;
+      const have = G.DEX.filter(p => inTab(p, g) && s.owned[p.dex]).length;
       const b = document.createElement('button');
       b.className = 'gen-tab' + (g === dexGen ? ' on' : '');
       b.innerHTML = `<b>${name}</b><small>${have}/${total}</small>`;
@@ -143,7 +145,7 @@ G.MenuUI = (() => {
     const grid = $('dex-grid');
     grid.innerHTML = '';
     for (const p of G.DEX) {
-      if (p.gen !== dexGen) continue;
+      if (dexGen === 0 ? !p.custom : (p.gen !== dexGen || p.custom)) continue;
       const own = !!s.owned[p.dex], sh = !!(s.shiny && s.shiny[p.dex]);
       if (dexFilter === 'own' && !own) continue;
       if (dexFilter === 'miss' && own) continue;
@@ -194,7 +196,7 @@ G.MenuUI = (() => {
           <button class="${viewShiny ? '' : 'on'}" data-v="0">Normal</button>
           <button class="${viewShiny ? 'on' : ''}" data-v="1">${G.Icons.html('shiny', 12)} Shiny</button></div>` : ''}
       <div class="center">
-        <div style="color:var(--muted);font-size:13px">Nº ${String(p.dex).padStart(3, '0')} · ${GEN_NAMES[p.gen - 1]}</div>
+        <div style="color:var(--muted);font-size:13px">Nº ${String(p.dex).padStart(3, '0')} · ${p.custom ? '自製' : GEN_NAMES[p.gen - 1]}</div>
         <h3>${own ? p.name : '???'}</h3>
         <div style="color:${G.Gacha.RARITY_COLOR[p.rarity]}">${G.UI.stars(p.rarity, 24)} ${G.Gacha.RARITY_NAME[p.rarity]}</div>
         <div style="margin:6px 0">${own ? G.UI.typeChips(p.types) : ''}</div>
@@ -209,7 +211,8 @@ G.MenuUI = (() => {
         ${usingThis
           ? '<button class="btn grow" disabled style="width:100%">Es tu compañero</button>'
           : `<button id="dex-pick" class="btn gold" data-sfx="confirm" style="width:100%">Elegir de compañero${viewShiny ? ' (shiny)' : ''}</button>`}
-      ` : `<p class="center" style="color:var(--muted)">Aún no lo tienes.<br>Consíguelo en el banner de <b class="gold">${GEN_NAMES[p.gen - 1]}</b>
+      ` : p.custom ? `<p class="center" style="color:var(--muted)">喺主選單撳佢嘅頭像，就會加入同揀做夥伴。</p>`
+        : `<p class="center" style="color:var(--muted)">Aún no lo tienes.<br>Consíguelo en el banner de <b class="gold">${GEN_NAMES[p.gen - 1]}</b>
             o derrotándolo cuando salga shiny.</p>`}
     `;
     $('dex-big').style.setProperty('--stage-c', !own ? '#5b83d6' : viewShiny ? '#9ae6ff' : G.U.TYPE_COLOR[p.types[0]]);

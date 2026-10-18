@@ -172,14 +172,79 @@
     for (const e of near) strike(pl, Math.atan2(e.y - pl.y, e.x - pl.x), 280, 22, 40 * pl.atk, '#ff3048', 'ghost');
   }
 
-  // 新卍解：月牙天衝一次射兩道
+  // ---------------- 月牙天衝：彎月刀氣（唔再係一條直線） ----------------
+  // 顏色跟住而家個造型：[刀氣中間, 邊]
+  const MOON_COL = {
+    9002: ['#e8f6ff', '#5fb8ff'],   // 始解：淺藍白
+    9101: ['#121018', '#e0303a'],   // 卍解：黑色紅邊
+    9102: ['#1a0508', '#ff2030'],   // 虛化：黑紅
+    9104: ['#0e0e1c', '#62d6ff'],   // 新卍解：黑色藍邊
+    9105: ['#2a0a10', '#ff5070'],   // 完全虛化
+    9103: ['#05030a', '#8a60ff']    // 無月
+  };
+  const moons = [];
+  let moonNext = false;            // 下一下 G.FX.beam 係月牙天衝：畫月牙代替直線
+  function moonColors(pl) { return MOON_COL[pl.dex] || MOON_COL[pl.mon.dex] || ['#e8f6ff', '#5fb8ff']; }
+
+  const fxBeam = G.FX.beam;
+  G.FX.beam = function (x, y, angle, len, width, color, fx) {
+    if (!moonNext) return fxBeam.apply(this, arguments);
+    moonNext = false;
+    const pl = G.Game.player, c = pl ? moonColors(pl) : ['#e8f6ff', '#5fb8ff'];
+    moons.push({ x, y, angle, len, R: Math.max(30, width * 1.6), core: c[0], edge: c[1], t: 0, life: 0.3 });
+  };
+  const fxUpdate = G.FX.update;
+  G.FX.update = function (dt) {
+    for (let i = moons.length - 1; i >= 0; i--) if ((moons[i].t += dt) >= moons[i].life) moons.splice(i, 1);
+    return fxUpdate.apply(this, arguments);
+  };
+  const fxClear = G.FX.clear;
+  G.FX.clear = function () { moons.length = 0; return fxClear.apply(this, arguments); };
+
+  // 像素月牙：喺前面個圓入面、後面個圓外面嘅格仔（中間厚、兩頭尖）
+  function drawMoon(ctx, o, u0, R, alpha) {
+    const P = G.Sprites.PX, d = R * 0.42;
+    ctx.globalAlpha = alpha;
+    for (let v = -R; v <= R; v += P) {
+      for (let u = -R; u <= R; u += P) {
+        const a = Math.hypot(u, v), b = Math.hypot(u + d, v);
+        if (a > R || b < R) continue;
+        ctx.fillStyle = (R - a < P * 1.5 || b - R < P * 1.5) ? o.edge : o.core;
+        ctx.fillRect(u0 + u, v, P, P);
+      }
+    }
+  }
+  const fxDraw = G.FX.draw;
+  G.FX.draw = function (ctx) {
+    const r = fxDraw.apply(this, arguments);
+    for (const o of moons) {
+      const k = o.t / o.life, ease = 1 - (1 - k) * (1 - k);
+      const R = Math.round(o.R * (0.75 + 0.25 * ease) / 2) * 2;
+      ctx.save();
+      ctx.translate(Math.round(o.x), Math.round(o.y));
+      ctx.rotate(Math.round(o.angle / (Math.PI / 16)) * (Math.PI / 16));
+      const fade = k > 0.8 ? 0.5 : 1;
+      drawMoon(ctx, o, Math.round(o.len * Math.max(0, ease - 0.16)), R * 0.85, 0.25 * fade);   // 殘影
+      drawMoon(ctx, o, Math.round(o.len * Math.max(0, ease - 0.08)), R * 0.92, 0.45 * fade);
+      drawMoon(ctx, o, Math.round(o.len * ease), R, fade);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+    return r;
+  };
+
   const cast = G.Player.prototype.cast;
   G.Player.prototype.cast = function (m, ...a) {
     const r = cast.call(this, m, ...a);
-    const f = this === G.Game.player && curForm(this);
-    if (f && f.dual && m && DUAL_MOVES.includes(m.id)) {
+    if (this !== G.Game.player || !m || !DUAL_MOVES.includes(m.id)) return r;
+    // cast 之後即刻就係 Combat 嘅 beam()：嗰下改畫月牙
+    moonNext = true;
+    queueMicrotask(() => { moonNext = false; });
+    // 新卍解：月牙天衝一次射兩道
+    const f = curForm(this);
+    if (f && f.dual) {
       const pl = this, ang = pl.aim + 0.32;
-      setTimeout(() => { if (!pl.dead) strike(pl, ang, m.radius, m.width, m.dmg * pl.atk, '#9aa0ff', m.type); }, 110);
+      setTimeout(() => { if (!pl.dead) { moonNext = true; strike(pl, ang, m.radius, m.width, m.dmg * pl.atk, '#9aa0ff', m.type); moonNext = false; } }, 110);
     }
     return r;
   };
@@ -328,5 +393,5 @@
   `;
   document.head.appendChild(css);
 
-  G.CustomUlt = { fill() { S.gauge = GAUGE_MAX; }, get state() { return S; }, activate, switchForm, cycleUlt };
+  G.CustomUlt = { fill() { S.gauge = GAUGE_MAX; }, get state() { return S; }, activate, switchForm, cycleUlt, moons };
 })();
