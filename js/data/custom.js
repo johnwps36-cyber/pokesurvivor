@@ -4,7 +4,8 @@
  *
  * 加新角色：喺 CUSTOM_CHARS 加一項，再喺 assets/pokemon/<dex>/ 放圖。
  *   sprite: 'copy:<dex>'  暫時借用某隻寶可夢嘅圖（例如 25 = 皮卡丘）
- *   sprite: { ... }        自己嘅圖嘅設定（格式同 sprites-meta.js 一樣）
+ *   sprite: 'custom'       自己嘅圖：設定喺 js/data/custom-sprites.js（由 tools/custom_sprites.py 生成）
+ *   sprite: { ... }        直接寫設定（格式同 sprites-meta.js 一樣）
  *
  * 為咗唔會變成敵人／頭目或者喺扭蛋抽到：rarity 5 + bst 1 + 唔係 leg。
  */
@@ -13,7 +14,15 @@
     { id: 'thunderclap-flash', name: '霹靂一閃', type: 'electric', kind: 'dash',
       desc: '雷之呼吸・壹之型：以雷電般嘅速度衝向敵人，斬開沿路所有嘢。',
       cd: 0.85, dmg: 34, radius: 160, width: 38, knock: 50,
-      ladderFrom: 'quick-attack', evo: ['霹靂一閃・六連', 'spd'] }
+      ladderFrom: 'quick-attack', evo: ['霹靂一閃・六連', 'spd'] },
+    { id: 'getsuga-tensho', name: '月牙天衝', type: 'ghost', kind: 'beam',
+      desc: '向前方斬出巨大嘅月牙，穿透所有敵人。',
+      cd: 1.1, dmg: 30, radius: 220, width: 30,
+      ladderFrom: 'psybeam', evo: ['黑月牙天衝', 'atk'] },
+    { id: 'bankai-tensa', name: '卍解・天鎖斬月', type: 'ghost', kind: 'buff',
+      desc: '無傷害：使用期間不斷累積速度。',
+      cd: 0.85, stat: 'spd', amount: 0.14, dur: 8, stacks: 5,
+      ladderFrom: 'agility' }
   ];
 
   const CUSTOM_CHARS = [
@@ -21,7 +30,12 @@
       hp: 92, spd: 128, atk: 1.32,
       start: 'thunderclap-flash', sig: ['thunderclap-flash'],
       traits: ['tímido', 'valiente'],
-      sprite: 'copy:25' }
+      sprite: 'copy:25' },
+    { dex: 9002, name: '黑崎一護', types: ['ghost', 'fighting'],
+      hp: 100, spd: 112, atk: 1.38,
+      start: 'getsuga-tensho', sig: ['getsuga-tensho', 'bankai-tensa'],
+      traits: ['valiente', 'tenaz'],
+      sprite: 'custom' }
   ];
 
   // ---- 招式 ----
@@ -57,6 +71,8 @@
       const meta = JSON.parse(JSON.stringify(src));
       delete meta.sh; delete meta.sa; delete meta.sm;   // 冇 shiny 版
       G.SPRITE_META[c.dex] = meta;
+    } else if (c.sprite === 'custom') {
+      if (G.CUSTOM_SPRITES && G.CUSTOM_SPRITES[c.dex]) G.SPRITE_META[c.dex] = G.CUSTOM_SPRITES[c.dex];
     } else if (c.sprite) {
       G.SPRITE_META[c.dex] = c.sprite;
     }
