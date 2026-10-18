@@ -53,7 +53,7 @@ G.Game = (() => {
 
   /** Móvil en vertical: aviso de girarlo (y pausa). */
   function checkOrientation() {
-    const portrait = G.Touch.active && innerHeight > innerWidth;
+    const portrait = G.Touch.active && innerHeight > innerWidth && !G.ALLOW_PORTRAIT;
     const el = document.getElementById('rotate');
     if (!el) return;
     if (portrait && !document.getElementById('rotate-ico').innerHTML) document.getElementById('rotate-ico').innerHTML = G.Icons.html('phone', 48);
@@ -863,7 +863,7 @@ G.Game = (() => {
   })();
 
   return {
-    init, startRun, everyone, levelXp, flash, offerBond,
+    init, startRun, everyone, levelXp, flash, offerBond, offerItem,
     /** Para pruebas: salta el reloj de la run. */
     debugTime(t) { tampered = true; time = t; },
     /** Para grabar vídeos: cámara lenta (0,5 = mitad de velocidad). */

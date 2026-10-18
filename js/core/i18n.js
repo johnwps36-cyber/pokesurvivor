@@ -22,7 +22,11 @@ G.I18n = (() => {
   try { saved = localStorage.getItem(KEY); } catch (e) { /* nada */ }
   const byPath = /\/en(\/|$)/.test(location.pathname) ? 'en' : null;
   const nav = ((navigator.languages && navigator.languages[0]) || navigator.language || 'es').toLowerCase();
-  const lang = saved === 'es' || saved === 'en' ? saved : byPath || (nav.startsWith('es') ? 'es' : 'en');
+  // (mod) 中文：繁體 zh-Hant / 簡體 zh-Hans
+  const LANGS = ['es', 'en', 'zh-Hant', 'zh-Hans'];
+  const navZh = nav.startsWith('zh') ? (/cn|sg|hans/.test(nav) ? 'zh-Hans' : 'zh-Hant') : null;
+  const lang = LANGS.includes(saved) ? saved : byPath || navZh || (nav.startsWith('es') ? 'es' : 'en');
+  const isZh = lang.startsWith('zh');
   document.documentElement.lang = lang;
 
   const exact = new Map(), exactLow = new Map();
@@ -31,14 +35,18 @@ G.I18n = (() => {
   const L = '\\p{L}\\p{N}';
   const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-  /** Añade traducciones { 'texto en español': 'English text' }. */
-  function add(dict) {
+  /** Añade traducciones { 'texto en español': 'English text' }.
+   *  (mod) code: idioma del diccionario. El inglés sirve de respaldo en chino. */
+  function add(dict, code = 'en') {
+    if (code === 'en' ? !(lang === 'en' || isZh) : code !== lang) return;
+    const first = code !== 'en';          // el chino gana al inglés de respaldo
     const fr = [];
     for (const [es, en] of Object.entries(dict)) {
       if (!en || es === en) continue;
       if (es.includes('{x}')) {
         const parts = es.split('{x}').map(reEsc);
-        patterns.push({ re: new RegExp('^' + parts.join('(.+?)') + '$', 'u'), reI: new RegExp('^' + parts.join('(.+?)') + '$', 'iu'), en });
+        const pt = { re: new RegExp('^' + parts.join('(.+?)') + '$', 'u'), reI: new RegExp('^' + parts.join('(.+?)') + '$', 'iu'), en };
+        if (first) patterns.unshift(pt); else patterns.push(pt);
       } else {
         exact.set(es, en);
         exactLow.set(es.toLowerCase(), en);

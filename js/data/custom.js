@@ -13,7 +13,7 @@
     { id: 'thunderclap-flash', name: '霹靂一閃', type: 'electric', kind: 'dash',
       desc: '雷之呼吸・壹之型：以雷電般嘅速度衝向敵人，斬開沿路所有嘢。',
       cd: 0.85, dmg: 34, radius: 160, width: 38, knock: 50,
-      ladderFrom: 'quick-attack' }
+      ladderFrom: 'quick-attack', evo: ['霹靂一閃・六連', 'spd'] }
   ];
 
   const CUSTOM_CHARS = [
@@ -28,12 +28,13 @@
   for (const m of CUSTOM_MOVES) {
     const base = G.Moves.BY_ID[m.ladderFrom];
     const def = Object.assign({}, m);
-    delete def.ladderFrom;
+    delete def.ladderFrom; delete def.evo;
     def.ups = base.ups;
     def.maxLvl = base.maxLvl;
     def.custom = true;
     G.Moves.ALL.push(def);
     G.Moves.BY_ID[def.id] = def;
+    if (m.evo) G.Moves.EVO[def.id] = m.evo;   // [進化後名稱, 需要嘅升級卡]
   }
 
   // 專屬招式：只有 sig 入面列明嘅角色學到
