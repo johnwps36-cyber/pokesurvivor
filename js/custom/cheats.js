@@ -44,6 +44,7 @@
     { id: 'ohk',  t: '秒殺',     toggle: 'ohk' },
     { id: 'fast', t: '移動加速', toggle: 'fast' },
     { id: 'heal', t: '回滿血',   run: pl => { pl.hp = pl.maxHp; toast('血量已回滿'); } },
+    { id: 'ult',  t: '必殺儲滿', run: () => { if (G.CustomUlt) G.CustomUlt.fill(); toast('必殺計量已儲滿'); } },
     { br: '血量倍數' },
     { id: 'hp1',  t: '×1',  mul: 1 },
     { id: 'hp2',  t: '×2',  mul: 2 },

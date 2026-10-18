@@ -16,7 +16,8 @@ sys.path.insert(0, os.path.dirname(__file__))
 from sprite_process import frames_from_sheet, build_sheet
 
 ROOT = os.path.join(os.path.dirname(__file__), '..')
-CHARS = {'zenitsu': 9001, 'ichigo': 9002}
+CHARS = {'zenitsu': 9001, 'ichigo': 9002,
+         'ichigo_bankai': 9101, 'ichigo_hollow': 9102, 'ichigo_mugetsu': 9103}   # 變身造型
 ANIMS = {'idle': 'Idle', 'walk': 'Walk', 'attack': 'Attack', 'shoot': 'Shoot',
          'charge': 'Charge', 'hurt': 'Hurt', 'faint': 'Faint'}
 # 最高嗰格嘅目標高度（像素）。攻擊動作有刀，所以高啲。
