@@ -30,7 +30,7 @@ def to_sprite(img, h, colors=24):
 if __name__ == '__main__':
     to_sprite(Image.open(sys.argv[1]), int(sys.argv[3])).save(sys.argv[2])
 
-def frames_from_sheet(img, h, min_area_frac=0.01):
+def frames_from_sheet(img, h, min_area_frac=0.01, by_row=False):
     """將一張多格圖切成每格 sprite（按閱讀次序），全部統一高度比例、腳對齊。"""
     from scipy import ndimage
     a = np.array(img.convert('RGB'))
@@ -51,15 +51,15 @@ def frames_from_sheet(img, h, min_area_frac=0.01):
             rows.append(cur); cur = []
         cur.append(s)
     if cur: rows.append(cur)
-    ordered = [s for r in rows for s in sorted(r, key=lambda s: s[1].start)]
+    rows = [sorted(r, key=lambda s: s[1].start) for r in rows]
     # 用最高嗰格決定縮放比例，令全部格大細一致
-    tallest = max(s[0].stop - s[0].start for s in ordered)
-    out = []
-    for s in ordered:
+    tallest = max(s[0].stop - s[0].start for r in rows for s in r)
+    def conv(s):
         sub = a[s[0], s[1]]
-        hh = max(1, round(h * sub.shape[0] / tallest))
-        out.append(to_sprite(Image.fromarray(sub), hh))
-    return out
+        return to_sprite(Image.fromarray(sub), max(1, round(h * sub.shape[0] / tallest)))
+    if by_row:
+        return [[conv(s) for s in r] for r in rows]
+    return [conv(s) for r in rows for s in r]
 
 def build_sheet(frames_by_row, pad=2):
     """frames_by_row: 每個方向一行嘅 frame 列表。回傳 (sheet, w, h, ax, ay)；腳底對齊、水平置中。"""

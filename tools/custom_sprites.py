@@ -7,6 +7,7 @@
       js/data/custom-sprites.js                     ← 動作設定（格數、大細、腳位、速度）
 
 方向：down / downright / right / upright / up。左邊三個方向自動由右邊反轉。
+合併圖：walk_all / shoot_all / attack_all（三行：正面、右、背面）、misc（三行：待機、受傷、倒下）。
 只交一個方向嘅動作（例如 hurt_down），全部方向都用同一行。
 """
 import os, sys, json, glob
@@ -25,6 +26,13 @@ ANIMS = {'idle': 'Idle', 'walk': 'Walk', 'attack': 'Attack', 'shoot': 'Shoot',
 HEIGHT = {'Idle': 48, 'Walk': 48, 'Attack': 60, 'Shoot': 56, 'Charge': 52, 'Hurt': 46, 'Faint': 48}
 # 每格時間（1/60 秒），按格數平均分配
 DUR = {'Idle': 10, 'Walk': 8, 'Attack': 4, 'Shoot': 5, 'Charge': 6, 'Hurt': 6, 'Faint': 10}
+# 合併圖（一張圖多行，由上至下）：檔名 -> 每行係 (動作, 方向)
+COMBINED = {
+    'walk_all':  [('walk', 'down'), ('walk', 'right'), ('walk', 'up')],
+    'shoot_all': [('shoot', 'down'), ('shoot', 'right'), ('shoot', 'up')],
+    'attack_all': [('attack', 'down'), ('attack', 'right'), ('attack', 'up')],
+    'misc':      [('idle', 'down'), ('hurt', 'down'), ('faint', 'down')],
+}
 # 8 行：0 下 1 右下 2 右 3 右上 4 上 5 左上 6 左 7 左下
 ROWS = ['down', 'downright', 'right', 'upright', 'up', 'upleft', 'left', 'downleft']
 MIRROR = {'upleft': 'upright', 'left': 'right', 'downleft': 'downright'}
@@ -46,17 +54,32 @@ def pick(have, d):
 def build_char(name, dex):
     files = glob.glob(os.path.join(ROOT, 'custom-src', name, '*.*'))
     by_anim = {}
+    combined = []          # 合併圖：一張圖多行
     for f in files:
         base = os.path.splitext(os.path.basename(f))[0]
+        if base in COMBINED: combined.append((base, f)); continue
         if '_' not in base: continue
         a, d = base.split('_', 1)
         if a in ANIMS and d in FALLBACK: by_anim.setdefault(ANIMS[a], {})[d] = f
+    pre = {}               # (anim, 方向) -> 已切好嘅 frames
+    for base, f in combined:
+        layout = COMBINED[base]
+        rows = frames_from_sheet(Image.open(f), HEIGHT[ANIMS[layout[0][0]]], by_row=True)
+        if len(rows) != len(layout):
+            print(f'  ⚠ {name}/{base}: 搵到 {len(rows)} 行，應該係 {len(layout)} 行，跳過')
+            continue
+        for (a, d), fr in zip(layout, rows):
+            # 唔同動作嘅高度唔同：按目標高度比例縮放
+            k = HEIGHT[ANIMS[a]] / HEIGHT[ANIMS[layout[0][0]]]
+            if k != 1: fr = [x.resize((max(1, round(x.width * k)), max(1, round(x.height * k))), Image.NEAREST) for x in fr]
+            pre[(ANIMS[a], d)] = fr
+            by_anim.setdefault(ANIMS[a], {})[d] = None
     if not by_anim: return None
     out_dir = os.path.join(ROOT, 'assets', 'pokemon', str(dex))
     os.makedirs(out_dir, exist_ok=True)
     meta = {'s': 1, 'a': {}}
     for anim, have in by_anim.items():
-        frames = {d: frames_from_sheet(Image.open(f), HEIGHT[anim]) for d, f in have.items()}
+        frames = {d: pre[(anim, d)] if f is None else frames_from_sheet(Image.open(f), HEIGHT[anim]) for d, f in have.items()}
         n = max(len(v) for v in frames.values())
         if len(have) == 1:
             rows = [next(iter(frames.values()))]
