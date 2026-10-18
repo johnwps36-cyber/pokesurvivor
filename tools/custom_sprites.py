@@ -10,7 +10,7 @@
 合併圖：walk_all / shoot_all / attack_all（三行：正面、右、背面）、misc（三行：待機、受傷、倒下）。
 只交一個方向嘅動作（例如 hurt_down），全部方向都用同一行。
 """
-import os, sys, json, glob
+import os, sys, json, glob, hashlib
 from PIL import Image, ImageOps
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -107,6 +107,10 @@ def build_char(name, dex):
         src = Image.open(os.path.join(out_dir, first + '.png'))
         src.crop((k * m['w'], 0, (k + 1) * m['w'], m['h'] * m['r'])).save(os.path.join(out_dir, 'Idle.png'), optimize=True)
         meta['a']['Idle'] = dict(m, n=1, d=[60])
+    # 每張圖加指紋：換圖之後網址會變，手機唔會一直用舊嘅暫存圖
+    for anim, am in meta['a'].items():
+        with open(os.path.join(out_dir, anim + '.png'), 'rb') as fh:
+            am['v'] = hashlib.sha1(fh.read()).hexdigest()[:8]
     return meta
 
 

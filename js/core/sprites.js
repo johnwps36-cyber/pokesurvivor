@@ -90,12 +90,12 @@ G.Sprites = (() => {
     if (s) {
       s.at = now;
       // Si la descarga se cortó (red mala, servidor saturado), reintenta más tarde.
-      if (s.failed && performance.now() > s.retryAt) { s.failed = false; s.img.src = s.src + '?r=' + s.tries; }
+      if (s.failed && performance.now() > s.retryAt) { s.failed = false; s.img.src = s.src + (s.src.includes('?') ? '&' : '?') + 'r=' + s.tries; }
       return s;
     }
     if (sheets.size >= MAX_SHEETS) evict(now);
     s = { ready: false, failed: false, img: new Image(), tries: 0, retryAt: 0, at: now,
-          src: `assets/pokemon/${dex}/${shiny ? 's/' : ''}${name}.png` };
+          src: `assets/pokemon/${dex}/${shiny ? 's/' : ''}${name}.png` + (m && m.a[name] && m.a[name].v ? '?v=' + m.a[name].v : '') };
     s.img.onload = () => { s.ready = true; };
     s.img.onerror = () => { s.failed = true; s.retryAt = performance.now() + 1000 * Math.min(8, 2 ** s.tries++); };
     s.img.src = s.src;
