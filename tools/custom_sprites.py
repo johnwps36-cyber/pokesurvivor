@@ -24,6 +24,8 @@ ANIMS = {'idle': 'Idle', 'walk': 'Walk', 'attack': 'Attack', 'shoot': 'Shoot',
          'charge': 'Charge', 'hurt': 'Hurt', 'faint': 'Faint'}
 # 身高（像素，按每張圖格仔高度嘅中位數計）。
 HEIGHT = {'Idle': 48, 'Walk': 48, 'Attack': 48, 'Shoot': 48, 'Charge': 48, 'Hurt': 48, 'Faint': 48}
+# 某啲動作只用頭幾格（例如 Gemini 將待機畫成踏步，就只要第 1 格）：(角色, 動作) -> 格數
+KEEP = {('ichigo_shinbankai', 'Idle'): 1}
 # 每格時間（1/60 秒），按格數平均分配
 DUR = {'Idle': 10, 'Walk': 8, 'Attack': 4, 'Shoot': 5, 'Charge': 6, 'Hurt': 6, 'Faint': 10}
 # 合併圖（一張圖多行，由上至下）：檔名 -> 每行係 (動作, 方向)
@@ -80,6 +82,7 @@ def build_char(name, dex):
     meta = {'s': 1, 'a': {}}
     for anim, have in by_anim.items():
         frames = {d: pre[(anim, d)] if f is None else frames_from_sheet(Image.open(f), HEIGHT[anim]) for d, f in have.items()}
+        if (name, anim) in KEEP: frames = {d: v[:KEEP[(name, anim)]] for d, v in frames.items()}
         n = max(len(v) for v in frames.values())
         if len(have) == 1:
             rows = [next(iter(frames.values()))]
