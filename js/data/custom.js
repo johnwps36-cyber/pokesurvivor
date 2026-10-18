@@ -81,4 +81,7 @@
     G.STARTERS.push(st);
     G.STARTER_BY[c.dex] = st;
   }
+
+  // 變身造型（例如 9101 卍解、9102 虛化）：唔係可揀嘅角色，只係登記圖，等變身時換得到
+  for (const d in (G.CUSTOM_SPRITES || {})) if (!G.SPRITE_META[d]) G.SPRITE_META[d] = G.CUSTOM_SPRITES[d];
 })();
