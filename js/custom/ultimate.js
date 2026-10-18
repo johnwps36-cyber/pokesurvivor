@@ -1,160 +1,214 @@
-/* ============ ultimate.js — 必殺技同變身（個人自玩 mod） ============
- * - 打敗敵人儲「必殺計量」，滿咗就撳必殺掣（電腦：R 鍵）發動。
- * - 每個角色都有必殺：自製角色用專屬必殺，其他寶可夢用通用嘅「全力爆發」。
- * - 一護 15 級永久變身「卍解」。
- * - 變身造型：如果有對應編號嘅圖（例如 9102 = 一護虛化）就換圖，冇就用顏色特效頂住。
+/* ============ ultimate.js — 必殺技同形態切換（個人自玩 mod） ============
+ * 必殺：打敗敵人儲計量，滿咗撳必殺掣發動（電腦：R）。
+ *       計量未滿時撳必殺掣＝轉下一個已解鎖嘅必殺；長按都可以轉（電腦：T）。
+ * 形態：有形態嘅角色（一護）會多一排形態掣（1、2、3），撳邊個就轉邊個，
+ *       唔會暫停遊戲，每次轉完有 3 秒冷卻（電腦：F 轉下一個）。
+ * 其他寶可夢：通用必殺「全力爆發」，冇形態。
+ * 造型圖：有對應編號嘅圖（例如 9101 = 卍解）就換圖，冇就用顏色光環頂住。
  */
 (() => {
-  const GAUGE_MAX = 100;
-  const PER_KILL = 1;            // 每打敗一隻 +1（大約 100 隻儲滿）
-  const PER_BOSS = 30;
+  const GAUGE_MAX = 100, PER_KILL = 1, PER_BOSS = 30;
+  const FORM_CD = 3;
 
-  // ---------------- 必殺定義 ----------------
-  // mods：dmg 傷害倍數、spd 速度倍數、cd 冷卻倍數（越細越快）；
-  // god：無敵；nuke：清場；chain：連續雷擊 N 隻；form：變身用嘅圖編號；tint：光環顏色。
-  const ULTS = {
-    9002: [
-      { name: '虛化', minLv: 1, dur: 15, mods: { dmg: 1.8, spd: 1.3, cd: 0.5 }, form: 9102, tint: '#c0102a',
-        say: '虛化！' },
-      { name: '無月', minLv: 40, dur: 10, mods: { dmg: 2.5, spd: 1.4, cd: 0.5 }, god: true, nuke: true, form: 9103, tint: '#20102a',
-        say: '最後之月牙天衝・無月！' }
-    ],
-    9001: [
-      { name: '漆之型・火雷神', minLv: 1, dur: 8, mods: { dmg: 1.5, spd: 1.6, cd: 0.6 }, god: true, chain: 14, tint: '#ffd23f',
-        say: '雷之呼吸・漆之型・火雷神！' }
-    ]
+  // ---------------- 角色設定 ----------------
+  // mods：dmg 傷害倍數、spd 速度倍數、cd 冷卻倍數（越細越快）
+  const CHARS = {
+    9002: {
+      forms: [
+        { name: '始解', lv: 1, dex: 9002, mods: {}, tint: '#ff8a2a' },
+        { name: '卍解', lv: 15, dex: 9101, mods: { spd: 1.3, cd: 0.6, dmg: 0.85 }, tint: '#6a6a90' },
+        { name: '新卍解', lv: 60, dex: 9104, mods: { cd: 1.2 }, dual: true, tint: '#9aa0ff' }
+      ],
+      ults: [
+        { name: '虛化', lv: 1, dur: 15, mods: { dmg: 1.8, spd: 1.3, cd: 0.5 }, form: 9102, tint: '#c0102a', say: '虛化！' },
+        { name: '完全虛化', lv: 30, dur: 15, mods: { dmg: 2.2 }, god: true, cero: true, form: 9105, tint: '#e8e8f0', say: '完全虛化！' },
+        { name: '無月', lv: 45, dur: 10, mods: { dmg: 2.5, spd: 1.4, cd: 0.5 }, god: true, nuke: true, form: 9103, tint: '#20102a',
+          say: '最後之月牙天衝・無月！' }
+      ]
+    },
+    9001: {
+      ults: [
+        { name: '火雷神', lv: 1, dur: 8, mods: { dmg: 1.5, spd: 1.6, cd: 0.6 }, god: true, chain: 14, tint: '#ffd23f',
+          say: '雷之呼吸・漆之型・火雷神！' }
+      ]
+    }
   };
+  const DUAL_MOVES = ['getsuga-tensho'];
+
   function defaultUlt(pl) {
     const col = G.U.TYPE_COLOR[pl.mon.types[0]] || '#ffd23f';
-    return { name: '全力爆發', dur: 12, mods: { dmg: 1.6, spd: 1.25, cd: 0.7 }, tint: col, say: pl.mon.name + '・全力爆發！' };
+    return { name: '全力爆發', lv: 1, dur: 12, mods: { dmg: 1.6, spd: 1.25, cd: 0.7 }, tint: col, say: pl.mon.name + '・全力爆發！' };
   }
-  function ultFor(pl) {
-    const list = ULTS[pl.mon.dex];
-    if (!list) return defaultUlt(pl);
-    let pick = list[0];
-    for (const u of list) if (pl.level >= u.minLv) pick = u;
-    return pick;
-  }
-
-  // 永久變身：一護 15 級卍解
-  const FORMS = {
-    9002: [{ lv: 15, name: '卍解', dex: 9101, spd: 1.15, say: '卍解！天鎖斬月！', tint: '#2a2a3a' }]
-  };
+  const cfg = pl => CHARS[pl.mon.dex] || {};
+  const forms = pl => (cfg(pl).forms || []).filter(f => pl.level >= f.lv);
+  const ults = pl => { const u = cfg(pl).ults; return u ? u.filter(x => pl.level >= x.lv) : [defaultUlt(pl)]; };
 
   // ---------------- 狀態 ----------------
-  const U = { gauge: 0, active: null, t: 0, lastKills: 0, lastBosses: 0, pl: null, form: null };
-
+  const S = {};
   function reset(pl) {
-    Object.assign(U, { gauge: 0, active: null, t: 0, lastKills: pl ? pl.kills : 0, lastBosses: pl ? pl.bosses : 0, pl, form: null });
+    Object.assign(S, { pl, gauge: 0, active: null, t: 0, ceroT: 0, form: 0, formCd: 0, ult: 0,
+                       lastKills: pl ? pl.kills : 0, lastBosses: pl ? pl.bosses : 0, seen: {} });
+    if (pl) for (const f of forms(pl)) S.seen['f' + f.name] = 1;
+    if (pl) for (const u of ults(pl)) S.seen['u' + u.name] = 1;
   }
-
-  function setSprite(pl, dex) {
-    if (!G.SPRITE_META[dex]) return false;
-    pl.dex = dex;
-    pl.anim = new G.Sprites.Animator(dex, 1, false);
-    G.Sprites.preload && G.Sprites.preload([dex], 4000, false);
-    return true;
-  }
-  const baseSprite = pl => (U.form && G.SPRITE_META[U.form.dex]) ? U.form.dex : pl.mon.dex;
+  const curForm = pl => (cfg(pl).forms || [])[S.form] || null;
+  const curUlt = pl => { const l = ults(pl); return l[Math.min(S.ult, l.length - 1)]; };
 
   function applyMods(pl, mods, on) {
-    const k = on ? 1 : -1;
+    if (!mods) return;
     const f = (v, x) => on ? v * x : v / x;
     if (mods.dmg) pl.atkMul = f(pl.atkMul, mods.dmg);
     if (mods.spd) pl.spdMul = f(pl.spdMul, mods.spd);
     if (mods.cd) pl.cdMul = f(pl.cdMul, mods.cd);
-    return k;
+  }
+  function setSprite(pl, dex) {
+    if (!dex || !G.SPRITE_META[dex]) return false;
+    if (pl.dex === dex) return true;
+    pl.dex = dex;
+    pl.anim = new G.Sprites.Animator(dex, 1, dex === pl.mon.dex && pl.shiny);
+    if (G.Sprites.preload) G.Sprites.preload([dex], 4000, false);
+    return true;
+  }
+  function restoreSprite(pl) {
+    const f = curForm(pl);
+    if (!(f && setSprite(pl, f.dex))) setSprite(pl, pl.mon.dex);
   }
 
-  // ---------------- 發動 ----------------
+  // ---------------- 形態切換 ----------------
+  /** idx：直接揀第幾個形態；唔俾 idx 就轉去下一個已解鎖嘅（電腦 F 鍵）。 */
+  function switchForm(idx) {
+    const pl = G.Game.player;
+    if (!pl || pl.dead || G.Game.state !== 'playing') return;
+    const all = cfg(pl).forms || [];
+    if (forms(pl).length < 2 || S.formCd > 0) return;
+    let next = idx;
+    if (next == null) { next = S.form; do { next = (next + 1) % all.length; } while (pl.level < all[next].lv); }
+    if (!all[next] || next === S.form) return;
+    if (pl.level < all[next].lv) { G.Spawner.say(all[next].name + '：' + all[next].lv + ' 級解鎖', 1.4, true); return; }
+    applyMods(pl, all[S.form].mods, false);
+    S.form = next;
+    const to = all[next];
+    applyMods(pl, to.mods, true);
+    S.formCd = FORM_CD;
+    if (!S.active) setSprite(pl, to.dex);
+    G.Spawner.say(to.name + '！', 1.4, true);
+    G.FX.ring(pl.x, pl.y, 8, 140, to.tint, 0.5, 5);
+    G.FX.burst(pl.x, pl.y - 20, to.tint, 24, 200);
+    G.Audio.sfx('pick');
+  }
+
+  // ---------------- 必殺 ----------------
+  function cycleUlt() {
+    const pl = G.Game.player;
+    if (!pl || S.active) return;
+    const l = ults(pl);
+    if (l.length < 2) return;
+    S.ult = (Math.min(S.ult, l.length - 1) + 1) % l.length;
+    G.Spawner.say('必殺：' + l[S.ult].name, 1.2, true);
+  }
+
   function activate() {
     const pl = G.Game.player;
-    if (!pl || pl.dead || U.active || U.gauge < GAUGE_MAX) return;
-    if (G.Game.state !== 'playing') return;
-    const u = ultFor(pl);
-    U.active = u; U.t = u.dur; U.gauge = 0;
+    if (!pl || pl.dead || S.active || S.gauge < GAUGE_MAX || G.Game.state !== 'playing') return;
+    const u = curUlt(pl);
+    S.active = u; S.t = u.dur; S.gauge = 0; S.ceroT = 0;
     applyMods(pl, u.mods, true);
-    if (u.form) setSprite(pl, u.form);
+    setSprite(pl, u.form);
     G.Spawner.say(u.say || u.name, 2.6, true);
     G.Game.flash(u.tint, 0.5);
-    G.Camera.kick && G.Camera.kick(0.8);
     G.FX.ring(pl.x, pl.y, 10, 260, u.tint, 0.7, 8);
     G.FX.burst(pl.x, pl.y - 20, u.tint, 60, 320);
     G.Audio.sfx('legend');
-    if (u.nuke) nuke(pl, u);
-    if (u.chain) chain(pl, u);
+    if (u.nuke) nuke(pl);
+    if (u.chain) chain(pl, u.chain);
   }
 
-  function nuke(pl, u) {
-    const list = G.EnemyMgr.all().filter(e => !e.dead);
-    for (const e of list) {
-      const dmg = e.boss ? e.maxHp * 0.35 : e.hp + 1;
-      e.hurt(dmg, '#a0a0ff', e.x - pl.x, e.y - pl.y, 0, 'crit');
+  function end(pl) {
+    const u = S.active;
+    applyMods(pl, u.mods, false);
+    S.active = null;
+    restoreSprite(pl);
+    G.Spawner.say(u.name + ' 結束', 1.4, true);
+  }
+
+  // 一道直線攻擊（新卍解第二道月牙、虛閃共用）
+  function strike(pl, ang, len, w, dmg, col, type) {
+    const ca = Math.cos(ang), sa = Math.sin(ang);
+    G.FX.beam(pl.x, pl.y - G.LIFT, ang, len, w, col);
+    const mx = pl.x + ca * len / 2, my = pl.y + sa * len / 2;
+    for (const e of G.EnemyMgr.queryCircle(mx, my, len / 2 + w)) {
+      if (e.dead) continue;
+      const px = e.x - pl.x, py = e.y - pl.y, along = px * ca + py * sa;
+      if (along < -e.r || along > len + e.r || Math.abs(-px * sa + py * ca) > w / 2 + e.r) continue;
+      const k = type ? G.Types.mult(type, e.types) : 1;
+      e.hurt(dmg * k, col, ca, sa, 0, k > 1 ? 'super' : null);
     }
-    for (let i = 0; i < 6; i++) G.FX.beam(pl.x, pl.y - 16, -Math.PI / 2 + i * 1.047, 900, 60, '#1a0a20');
+  }
+
+  function nuke(pl) {
+    for (const e of G.EnemyMgr.all().filter(e => !e.dead)) {
+      e.hurt(e.boss ? e.maxHp * 0.35 : e.hp + 1, '#a0a0ff', e.x - pl.x, e.y - pl.y, 0, 'crit');
+    }
+    for (let i = 0; i < 6; i++) G.FX.beam(pl.x, pl.y - G.LIFT, i * 1.047, 900, 60, '#1a0a20');
     G.FX.ring(pl.x, pl.y, 20, 900, '#000000', 1.0, 14);
   }
 
-  function chain(pl, u) {
+  function chain(pl, n) {
     let x = pl.x, y = pl.y;
-    const left = G.EnemyMgr.all().filter(e => !e.dead).sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y));
-    const hits = left.slice(0, u.chain);
+    const hits = G.EnemyMgr.all().filter(e => !e.dead)
+      .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y)).slice(0, n);
     hits.forEach((e, i) => setTimeout(() => {
       if (e.dead) return;
-      const ang = Math.atan2(e.y - y, e.x - x), len = Math.hypot(e.x - x, e.y - y);
-      G.FX.beam(x, y - 12, ang, len, 14, '#ffe14d');
-      e.hurt((e.boss ? 400 : e.hp + 1), '#ffe14d', e.x - x, e.y - y, 60, 'crit');
+      G.FX.beam(x, y - 12, Math.atan2(e.y - y, e.x - x), Math.hypot(e.x - x, e.y - y), 14, '#ffe14d');
+      e.hurt(e.boss ? 400 : e.hp + 1, '#ffe14d', e.x - x, e.y - y, 60, 'crit');
       G.FX.burst(e.x, e.y - 10, '#ffe14d', 14, 200);
       x = e.x; y = e.y;
     }, i * 70));
   }
 
-  function end(pl) {
-    const u = U.active;
-    applyMods(pl, u.mods, false);
-    if (u.form) {
-      const back = baseSprite(pl);
-      if (!setSprite(pl, back)) { pl.dex = pl.mon.dex; pl.anim = new G.Sprites.Animator(pl.mon.dex, 1, pl.shiny); }
-    }
-    U.active = null;
-    G.Spawner.say(u.name + ' 結束', 1.6, true);
+  function cero(pl) {
+    const near = G.EnemyMgr.all().filter(e => !e.dead)
+      .sort((a, b) => Math.hypot(a.x - pl.x, a.y - pl.y) - Math.hypot(b.x - pl.x, b.y - pl.y)).slice(0, 3);
+    for (const e of near) strike(pl, Math.atan2(e.y - pl.y, e.x - pl.x), 280, 22, 40 * pl.atk, '#ff3048', 'ghost');
   }
+
+  // 新卍解：月牙天衝一次射兩道
+  const cast = G.Player.prototype.cast;
+  G.Player.prototype.cast = function (m, ...a) {
+    const r = cast.call(this, m, ...a);
+    const f = this === G.Game.player && curForm(this);
+    if (f && f.dual && m && DUAL_MOVES.includes(m.id)) {
+      const pl = this, ang = pl.aim + 0.32;
+      setTimeout(() => { if (!pl.dead) strike(pl, ang, m.radius, m.width, m.dmg * pl.atk, '#9aa0ff', m.type); }, 110);
+    }
+    return r;
+  };
 
   // ---------------- 每幀 ----------------
   const upd = G.Player.prototype.update;
   G.Player.prototype.update = function (dt) {
     const r = upd.call(this, dt);
     if (this !== G.Game.player) return r;
-    if (U.pl !== this) reset(this);
-    // 儲計量
-    const dk = this.kills - U.lastKills, db = this.bosses - U.lastBosses;
-    if (!U.active && (dk > 0 || db > 0)) U.gauge = Math.min(GAUGE_MAX, U.gauge + dk * PER_KILL + db * PER_BOSS);
-    U.lastKills = this.kills; U.lastBosses = this.bosses;
-    // 必殺時間
-    if (U.active) {
-      if (U.active.god) this.invuln = Math.max(this.invuln, 0.1);
-      if ((U.t -= dt) <= 0 || this.dead) end(this);
+    if (S.pl !== this) reset(this);
+    const dk = this.kills - S.lastKills, db = this.bosses - S.lastBosses;
+    if (!S.active && (dk > 0 || db > 0)) S.gauge = Math.min(GAUGE_MAX, S.gauge + dk * PER_KILL + db * PER_BOSS);
+    S.lastKills = this.kills; S.lastBosses = this.bosses;
+    if (S.formCd > 0) S.formCd = Math.max(0, S.formCd - dt);
+    if (S.active) {
+      if (S.active.god) this.invuln = Math.max(this.invuln, 0.1);
+      if (S.active.cero && (S.ceroT -= dt) <= 0) { S.ceroT = 0.7; cero(this); }
+      if ((S.t -= dt) <= 0 || this.dead) end(this);
     }
-    // 永久變身
-    const forms = FORMS[this.mon.dex];
-    if (forms) for (const f of forms) {
-      if (this.level >= f.lv && (!U.form || U.form.lv < f.lv)) {
-        U.form = f;
-        if (f.spd) this.spdMul *= f.spd;
-        if (!U.active) setSprite(this, f.dex);
-        G.Spawner.say(f.say, 2.6, true);
-        G.Game.flash(f.tint, 0.4);
-        G.FX.ring(this.x, this.y, 10, 200, '#ffffff', 0.6, 6);
-      }
-    }
+    // 新解鎖提示
+    for (const f of forms(this)) if (!S.seen['f' + f.name]) { S.seen['f' + f.name] = 1; G.Spawner.say(f.name + ' 已解鎖！撳形態掣切換', 3, true); G.Game.flash(f.tint, 0.3); }
+    for (const u of ults(this)) if (!S.seen['u' + u.name]) { S.seen['u' + u.name] = 1; G.Spawner.say('必殺「' + u.name + '」已解鎖！', 3, true); }
     return r;
   };
 
-  // 必殺中：腳底光環同閃動
   const drw = G.Player.prototype.draw;
   G.Player.prototype.draw = function (ctx) {
-    if (this === G.Game.player && U.active && !this.dead) {
-      const u = U.active, t = performance.now() / 90;
+    if (this === G.Game.player && S.active && !this.dead) {
+      const u = S.active, t = performance.now() / 90;
       ctx.save();
       ctx.globalAlpha = 0.35 + Math.sin(t) * 0.15;
       ctx.fillStyle = u.tint;
@@ -165,58 +219,114 @@
     return drw.call(this, ctx);
   };
 
-  // 新一局重設
   const startRun = G.Game.startRun;
   G.Game.startRun = function (...a) { const r = startRun.apply(this, a); reset(G.Game.player); return r; };
 
-  // ---------------- 必殺掣 ----------------
-  function makeButton() {
+  // ---------------- 按鈕 ----------------
+  function makeBtn(id, onTap, onLong) {
     const b = document.createElement('button');
-    b.id = 'ult-btn';
+    b.id = id;
+    b.className = 'cx-btn';
     b.setAttribute('translate', 'no');
-    b.innerHTML = '<div class="ult-fill"></div><span class="ult-txt">必殺</span>';
-    b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); activate(); });
+    b.innerHTML = '<div class="cx-fill"></div><span class="cx-txt"></span>';
+    let timer = null, long = false;
+    b.addEventListener('pointerdown', e => {
+      e.preventDefault(); e.stopPropagation(); long = false;
+      if (onLong) timer = setTimeout(() => { long = true; onLong(); }, 450);
+    });
+    b.addEventListener('pointerup', e => {
+      e.preventDefault(); e.stopPropagation(); clearTimeout(timer);
+      if (!long) onTap();
+    });
+    b.addEventListener('pointercancel', () => clearTimeout(timer));
     document.body.appendChild(b);
     return b;
   }
-  let btn = null;
+  let ultBtn = null, formBox = null, formFor = null;
+  const RUNNING = ['playing', 'levelup', 'paused', 'choice', 'held'];
+  function buildForms(pl) {
+    formBox.innerHTML = '';
+    (cfg(pl).forms || []).forEach((f, i) => {
+      const b = document.createElement('button');
+      b.className = 'fx-btn';
+      b.innerHTML = `<div class="cx-fill"></div><span class="cx-txt">${i + 1}<small>${f.name}</small></span>`;
+      b.style.setProperty('--cx', f.tint);
+      b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); switchForm(i); });
+      formBox.appendChild(b);
+    });
+    formFor = pl;
+  }
   function tick() {
-    if (!btn && document.body) btn = makeButton();
-    if (btn) {
+    if (!ultBtn && document.body) {
+      ultBtn = makeBtn('ult-btn', () => (S.gauge >= GAUGE_MAX ? activate() : cycleUlt()), cycleUlt);
+      formBox = document.createElement('div');
+      formBox.id = 'form-box';
+      formBox.setAttribute('translate', 'no');
+      document.body.appendChild(formBox);
+    }
+    if (ultBtn) {
       const pl = G.Game.player;
-      const show = pl && !pl.dead && ['playing', 'levelup', 'paused', 'choice', 'held'].includes(G.Game.state);
-      btn.style.display = show ? 'flex' : 'none';
+      const show = pl && !pl.dead && RUNNING.includes(G.Game.state);
+      ultBtn.style.display = show ? 'flex' : 'none';
+      const hasForms = show && (cfg(pl).forms || []).length >= 2;
+      formBox.style.display = hasForms ? 'flex' : 'none';
       if (show) {
-        const pct = U.active ? U.t / U.active.dur : U.gauge / GAUGE_MAX;
-        btn.querySelector('.ult-fill').style.height = Math.round(pct * 100) + '%';
-        const ready = !U.active && U.gauge >= GAUGE_MAX;
-        btn.classList.toggle('ready', ready);
-        btn.classList.toggle('on', !!U.active);
-        const u = ultFor(pl);
-        btn.querySelector('.ult-txt').textContent = U.active ? Math.ceil(U.t) + 's' : ready ? u.name : Math.floor(U.gauge) + '%';
-        btn.style.setProperty('--ult', u.tint);
+        const u = curUlt(pl), ready = !S.active && S.gauge >= GAUGE_MAX;
+        ultBtn.querySelector('.cx-fill').style.height = Math.round((S.active ? S.t / S.active.dur : S.gauge / GAUGE_MAX) * 100) + '%';
+        ultBtn.classList.toggle('ready', ready);
+        ultBtn.classList.toggle('on', !!S.active);
+        ultBtn.querySelector('.cx-txt').innerHTML = S.active ? Math.ceil(S.t) + 's'
+          : `${u.name}<small>${ready ? '發動！' : Math.floor(S.gauge) + '%'}</small>`;
+        ultBtn.style.setProperty('--cx', (S.active || u).tint);
+      }
+      if (hasForms) {
+        if (formFor !== pl) buildForms(pl);
+        const all = cfg(pl).forms;
+        [...formBox.children].forEach((b, i) => {
+          const locked = pl.level < all[i].lv;
+          b.classList.toggle('cur', i === S.form);
+          b.classList.toggle('locked', locked);
+          b.querySelector('small').textContent = locked ? 'Lv' + all[i].lv : all[i].name;
+          b.querySelector('.cx-fill').style.height = (i === S.form || locked ? 0 : Math.round(S.formCd / FORM_CD * 100)) + '%';
+        });
       }
     }
     requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
-  addEventListener('keydown', e => { if ((e.key === 'r' || e.key === 'R') && !e.repeat) activate(); });
+  addEventListener('keydown', e => {
+    if (e.repeat) return;
+    if (e.key === 'r' || e.key === 'R') activate();
+    else if (e.key === 'f' || e.key === 'F') switchForm();
+    else if (e.key === 't' || e.key === 'T') cycleUlt();
+  });
 
   const css = document.createElement('style');
   css.textContent = `
-    #ult-btn { position: fixed; right: max(14px, env(safe-area-inset-right)); bottom: 96px; z-index: 30;
-      width: 68px; height: 68px; border-radius: 50%; border: 3px solid #e8ecff; background: rgba(10,16,40,.75);
+    .cx-btn { position: fixed; right: max(14px, env(safe-area-inset-right)); z-index: 30;
+      width: 70px; height: 70px; border-radius: 50%; border: 3px solid #e8ecff; background: rgba(10,16,40,.75);
       display: none; align-items: center; justify-content: center; overflow: hidden; padding: 0; touch-action: none;
-      color: #fff; font: 700 13px/1.1 'Pixelify Sans', sans-serif; text-shadow: 1px 1px 0 #000; }
-    #ult-btn .ult-fill { position: absolute; left: 0; right: 0; bottom: 0; background: var(--ult, #ffd23f); opacity: .55; }
-    #ult-btn .ult-txt { position: relative; text-align: center; padding: 0 4px; }
-    #ult-btn.ready { border-color: #ffd23f; animation: ult-pulse .7s ease-in-out infinite alternate; }
-    #ult-btn.on { border-color: var(--ult, #ffd23f); }
-    @keyframes ult-pulse { from { box-shadow: 0 0 6px 2px var(--ult, #ffd23f); } to { box-shadow: 0 0 22px 8px var(--ult, #ffd23f); } }
-    @media (orientation: portrait) { #ult-btn { bottom: 120px; } }
+      color: #fff; font: 700 14px/1.1 sans-serif; text-shadow: 1px 1px 0 #000; -webkit-user-select: none; user-select: none; }
+    .cx-btn .cx-fill { position: absolute; left: 0; right: 0; bottom: 0; background: var(--cx, #ffd23f); opacity: .55; }
+    .cx-btn .cx-txt { position: relative; text-align: center; padding: 0 4px; }
+    .cx-btn small { display: block; font-size: 10px; opacity: .85; margin-top: 2px; }
+    #ult-btn { bottom: 96px; }
+    #form-box { position: fixed; right: max(18px, env(safe-area-inset-right)); bottom: 176px; z-index: 30;
+      display: none; flex-direction: column-reverse; gap: 6px; }
+    .fx-btn { position: relative; width: 60px; height: 44px; border-radius: 10px; border: 2px solid var(--cx, #e8ecff);
+      background: rgba(10,16,40,.75); color: #fff; overflow: hidden; padding: 0; touch-action: none;
+      font: 700 15px/1 sans-serif; text-shadow: 1px 1px 0 #000; -webkit-user-select: none; user-select: none; }
+    .fx-btn small { display: block; font-size: 10px; margin-top: 2px; }
+    .fx-btn .cx-fill { position: absolute; left: 0; right: 0; bottom: 0; background: #000; opacity: .5; }
+    .fx-btn .cx-txt { position: relative; }
+    .fx-btn.cur { background: var(--cx, #ffd23f); box-shadow: 0 0 10px 2px var(--cx, #ffd23f); }
+    .fx-btn.locked { opacity: .45; border-color: #667; }
+    #ult-btn.ready { border-color: #ffd23f; animation: cx-pulse .7s ease-in-out infinite alternate; }
+    #ult-btn.on { border-color: var(--cx, #ffd23f); }
+    @keyframes cx-pulse { from { box-shadow: 0 0 6px 2px var(--cx, #ffd23f); } to { box-shadow: 0 0 22px 8px var(--cx, #ffd23f); } }
+    @media (orientation: portrait) { #ult-btn { bottom: 120px; } #form-box { bottom: 200px; } }
   `;
   document.head.appendChild(css);
 
-  // 金手指：即刻儲滿必殺
-  G.CustomUlt = { fill() { U.gauge = GAUGE_MAX; }, get state() { return U; }, activate };
+  G.CustomUlt = { fill() { S.gauge = GAUGE_MAX; }, get state() { return S; }, activate, switchForm, cycleUlt };
 })();
