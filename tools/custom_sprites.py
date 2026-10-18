@@ -97,9 +97,13 @@ def build_char(name, dex):
         meta['a'][anim] = {'w': w, 'h': h, 'n': n, 'r': len(rows), 'd': d, 'ax': ax, 'ay': ay}
         print(f'  {name} {anim}: {n} 格 × {len(rows)} 行，{w}×{h}，來源方向 {sorted(have)}')
     if 'Idle' not in meta['a']:
+        # 未有待機圖：用第一個動作嘅第 2 格（通常係企定嘅姿勢）做靜止待機，唔會成日郁
         first = next(iter(meta['a']))
-        meta['a']['Idle'] = meta['a'][first]
-        Image.open(os.path.join(out_dir, first + '.png')).save(os.path.join(out_dir, 'Idle.png'))
+        m = meta['a'][first]
+        k = 1 if m['n'] > 1 else 0
+        src = Image.open(os.path.join(out_dir, first + '.png'))
+        src.crop((k * m['w'], 0, (k + 1) * m['w'], m['h'] * m['r'])).save(os.path.join(out_dir, 'Idle.png'), optimize=True)
+        meta['a']['Idle'] = dict(m, n=1, d=[60])
     return meta
 
 
