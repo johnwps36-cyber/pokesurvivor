@@ -72,23 +72,36 @@ def frames_from_sheet(img, h, min_area_frac=0.01, by_row=False):
             if len(ys) < min_area_frac * 0.2 * H * W: continue
             row_cells.append((slice(r0 + ys.min(), r0 + ys.max() + 1), slice(c0 + xs.min(), c0 + xs.max() + 1)))
         if row_cells: cells.append(row_cells)
-    tallest = max(s[0].stop - s[0].start for r in cells for s in r)
+    # 縮放比例用「中位數高度」＝大約嘅身高：舉高把刀嘅格唔會令成個人縮細
+    hs = sorted(s[0].stop - s[0].start for r in cells for s in r)
+    ref = hs[len(hs) // 2]
     def conv(s):
         sub = a[s[0], s[1]]
-        return to_sprite(Image.fromarray(sub), max(1, round(h * sub.shape[0] / tallest)))
+        return to_sprite(Image.fromarray(sub), max(1, round(h * sub.shape[0] / ref)))
     if by_row:
         return [[conv(s) for s in r] for r in cells]
     return [conv(s) for r in cells for s in r]
 
+def feet_x(f):
+    """腳嘅水平位置：最底 15% 嘅不透明像素嘅中位數。"""
+    al = np.array(f.split()[3]) > 0
+    ys, xs = np.where(al)
+    if not len(ys): return f.width / 2
+    low = xs[ys >= ys.max() - max(2, int(f.height * 0.15))]
+    return float(np.median(low))
+
+
 def build_sheet(frames_by_row, pad=2):
-    """frames_by_row: 每個方向一行嘅 frame 列表。回傳 (sheet, w, h, ax, ay)；腳底對齊、水平置中。"""
+    """frames_by_row: 每個方向一行嘅 frame 列表。回傳 (sheet, w, h, ax, ay)；腳底對齊、腳嘅位置對準中線。"""
     allf = [f for r in frames_by_row for f in r]
-    w = max(f.width for f in allf) + pad * 2
+    half = max(max(feet_x(f), f.width - feet_x(f)) for f in allf)
+    w = int(np.ceil(half * 2)) + pad * 2
     hgt = max(f.height for f in allf) + pad * 2
     n = max(len(r) for r in frames_by_row)
     sheet = Image.new('RGBA', (w * n, hgt * len(frames_by_row)), (0, 0, 0, 0))
     for ri, r in enumerate(frames_by_row):
         for ci, f in enumerate(r):
-            sheet.alpha_composite(f, (ci * w + (w - f.width) // 2, ri * hgt + hgt - pad - f.height))
+            x = int(round(w / 2 - feet_x(f)))
+            sheet.alpha_composite(f, (ci * w + x, ri * hgt + hgt - pad - f.height))
     ax, ay = w / 2 - 0.5, hgt - pad - 1.5
     return sheet, w, hgt, ax, ay

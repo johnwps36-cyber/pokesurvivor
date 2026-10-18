@@ -22,8 +22,8 @@ CHARS = {'zenitsu': 9001, 'ichigo': 9002,
          'ichigo_shinbankai': 9104, 'ichigo_vastolorde': 9105}   # 變身造型
 ANIMS = {'idle': 'Idle', 'walk': 'Walk', 'attack': 'Attack', 'shoot': 'Shoot',
          'charge': 'Charge', 'hurt': 'Hurt', 'faint': 'Faint'}
-# 最高嗰格嘅目標高度（像素）。攻擊動作有刀，所以高啲。
-HEIGHT = {'Idle': 48, 'Walk': 48, 'Attack': 60, 'Shoot': 56, 'Charge': 52, 'Hurt': 46, 'Faint': 48}
+# 身高（像素，按每張圖格仔高度嘅中位數計）。
+HEIGHT = {'Idle': 48, 'Walk': 48, 'Attack': 48, 'Shoot': 48, 'Charge': 48, 'Hurt': 48, 'Faint': 48}
 # 每格時間（1/60 秒），按格數平均分配
 DUR = {'Idle': 10, 'Walk': 8, 'Attack': 4, 'Shoot': 5, 'Charge': 6, 'Hurt': 6, 'Faint': 10}
 # 合併圖（一張圖多行，由上至下）：檔名 -> 每行係 (動作, 方向)
