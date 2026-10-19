@@ -19,7 +19,8 @@ from sprite_process import frames_from_sheet, build_sheet
 ROOT = os.path.join(os.path.dirname(__file__), '..')
 CHARS = {'zenitsu': 9001, 'ichigo': 9002, 'gurren': 9003,
          'ichigo_bankai': 9101, 'ichigo_hollow': 9102, 'ichigo_mugetsu': 9103,
-         'ichigo_shinbankai': 9104, 'ichigo_vastolorde': 9105}   # 變身造型
+         'ichigo_shinbankai': 9104, 'ichigo_vastolorde': 9105,
+         'chouginga': 9201}   # 變身造型
 ANIMS = {'idle': 'Idle', 'walk': 'Walk', 'attack': 'Attack', 'shoot': 'Shoot',
          'charge': 'Charge', 'hurt': 'Hurt', 'faint': 'Faint'}
 # 身高（像素，按每張圖格仔高度嘅中位數計）。32 ≈ 寶可夢人形角色（路卡利歐約 27–29）
@@ -28,9 +29,12 @@ HEIGHT = {'Idle': 32, 'Walk': 32, 'Attack': 32, 'Shoot': 32, 'Charge': 32, 'Hurt
 KEEP = {('ichigo_hollow', 'Idle'): 1, ('ichigo_hollow', 'Hurt'): 1,
         ('ichigo_vastolorde', 'Idle'): 1, ('ichigo_vastolorde', 'Hurt'): 1}   # Gemini 將待機同受傷畫咗做行路：只用第 1 格
 # 某行入面畫錯嘅格（例如背面行第 1 格畫咗正面）：(角色, 動作, 方向) -> 要刪嘅格（由 0 數）
-DROP = {('ichigo_shinbankai', 'Walk', 'up'): [0]}
-# 上下兩行貼得太埋（上面隻腳掂到下面隻角）：(角色, 檔名) -> 行數。喺最空嘅位置切開
-SPLIT_ROWS = {('gurren', 'idle_right'): 2, ('gurren', 'walk_right'): 2}
+DROP = {('ichigo_shinbankai', 'Walk', 'up'): [0], ('chouginga', 'Walk', 'right'): [0]}   # 超銀河行路右第 1 格畫咗正面
+# 格仔之間貼得太埋（例如上面隻腳掂到下面隻角）：(角色, 檔名) -> (行數, 列數)。喺最空嘅位置切開
+SPLIT = {('gurren', 'idle_right'): (2, 1), ('gurren', 'walk_right'): (2, 1),
+         ('chouginga', 'idle_right'): (2, 2), ('chouginga', 'shoot_down'): (2, 2), ('chouginga', 'shoot_right'): (2, 2)}
+# 某啲造型畫大啲（例如超銀河：變身之後應該大過本體）：角色 -> 倍數
+SCALE = {'chouginga': 1.2}
 # 外光（全身黑色嘅造型縮細之後會溶入背景）：角色 -> 外圈顏色
 GLOW = {'ichigo_mugetsu': (120, 70, 200)}
 # 每格時間（1/60 秒），按格數平均分配
@@ -61,20 +65,23 @@ def pick(have, d):
 
 
 def open_sheet(name, f):
-    """開圖；如果要強制分行，就喺每條分界附近最空嘅位置塗一條洋紅色線。"""
+    """開圖；如果要強制分格，就喺每條分界附近最空嘅位置塗一條洋紅色線。"""
     img = Image.open(f).convert('RGB')
-    n = SPLIT_ROWS.get((name, os.path.splitext(os.path.basename(f))[0]))
-    if not n: return img
+    rc = SPLIT.get((name, os.path.splitext(os.path.basename(f))[0]))
+    if not rc: return img
     import numpy as np
     from sprite_process import magenta_mask
     a = np.array(img)
-    cnt = (~magenta_mask(a)).sum(1)
-    H = a.shape[0]
-    for k in range(1, n):
-        c = H * k // n
-        lo, hi = c - H // 10, c + H // 10
-        y = lo + int(np.argmin(cnt[lo:hi]))
+    fg = ~magenta_mask(a)
+    H, W = fg.shape
+    for k in range(1, rc[0]):
+        c = H * k // rc[0]; lo = c - H // 10
+        y = lo + int(np.argmin(fg.sum(1)[lo:c + H // 10]))
         a[max(0, y - 3):y + 4] = (255, 0, 255)
+    for k in range(1, rc[1]):
+        c = W * k // rc[1]; lo = c - W // 10
+        x = lo + int(np.argmin(fg.sum(0)[lo:c + W // 10]))
+        a[:, max(0, x - 3):x + 4] = (255, 0, 255)
     return Image.fromarray(a)
 
 
@@ -110,6 +117,8 @@ def build_char(name, dex):
             # 唔同動作嘅高度唔同：按目標高度比例縮放
             k = HEIGHT[ANIMS[a]] / HEIGHT[ANIMS[layout[0][0]]]
             if k != 1: fr = [x.resize((max(1, round(x.width * k)), max(1, round(x.height * k))), Image.NEAREST) for x in fr]
+            k2 = SCALE.get(name, 1)
+            if k2 != 1: fr = [x.resize((max(1, round(x.width * k2)), max(1, round(x.height * k2))), Image.NEAREST) for x in fr]
             drop = DROP.get((name, ANIMS[a], d), [])
             if drop: fr = [x for i, x in enumerate(fr) if i not in drop]
             pre[(ANIMS[a], d)] = fr
@@ -119,8 +128,11 @@ def build_char(name, dex):
     os.makedirs(out_dir, exist_ok=True)
     meta = {'s': 1, 'a': {}}
     for anim, have in by_anim.items():
-        frames = {d: pre[(anim, d)] if f is None else frames_from_sheet(open_sheet(name, f), HEIGHT[anim]) for d, f in have.items()}
+        frames = {d: pre[(anim, d)] if f is None else frames_from_sheet(open_sheet(name, f), round(HEIGHT[anim] * SCALE.get(name, 1))) for d, f in have.items()}
         if (name, anim) in KEEP: frames = {d: v[:KEEP[(name, anim)]] for d, v in frames.items()}
+        for d in list(frames):                     # 單張圖都可以刪畫錯嘅格
+            if have[d] is not None and DROP.get((name, anim, d)):
+                frames[d] = [x for i, x in enumerate(frames[d]) if i not in DROP[(name, anim, d)]]
         n = max(len(v) for v in frames.values())
         if len(have) == 1:
             rows = [next(iter(frames.values()))]
