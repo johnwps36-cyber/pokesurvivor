@@ -256,7 +256,7 @@
   };
 
   // 開場定格：借用遊戲本身嘅過場機制（全部停住、唔畫 HUD），1.6 秒
-  let introT = 0;
+  let introT = 0, introEnd = null;
   const J = G.Judgment;
   const cineGet = Object.getOwnPropertyDescriptor(J, 'cinematic').get;
   const musicGet = Object.getOwnPropertyDescriptor(J, 'music').get;
@@ -267,8 +267,12 @@
   J.cineTick = function (dt) {
     if (introT > 0 && !realCine()) {
       introT -= dt;
-      COSMOS.a = Math.min(1, COSMOS.a + dt * 1.5);
-      if (introT <= 0) { hideTitle(); G.Game.flash('#ffffff', 0.4); G.Camera.kick(0.6); }
+      if (COSMOS.on) COSMOS.a = Math.min(1, COSMOS.a + dt * 1.5);
+      G.FX.update(dt);
+      if (introT <= 0) {
+        hideTitle(); G.Game.flash('#ffffff', 0.4); G.Camera.kick(0.6);
+        const f = introEnd; introEnd = null; if (f) f();
+      }
       return;
     }
     return cineTick.apply(this, arguments);
@@ -944,5 +948,8 @@
   `;
   document.head.appendChild(css);
 
-  G.CustomUlt = { fill() { S.gauge = GAUGE_MAX; }, get state() { return S; }, activate, switchForm, cycleUlt, moons };
+  /** 通用過場：全部停住、出大字，dur 秒後行 onEnd（柒爺登場都用） */
+  function cine(dur, lines, onEnd) { introT = dur; introEnd = onEnd || null; showTitle(lines); }
+  G.CustomUlt = { fill() { S.gauge = GAUGE_MAX; }, get state() { return S; }, activate, switchForm, cycleUlt, moons, cine,
+                  get inCine() { return introT > 0; } };
 })();

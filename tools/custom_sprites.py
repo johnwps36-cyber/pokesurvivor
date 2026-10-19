@@ -20,7 +20,8 @@ ROOT = os.path.join(os.path.dirname(__file__), '..')
 CHARS = {'zenitsu': 9001, 'ichigo': 9002, 'gurren': 9003,
          'ichigo_bankai': 9101, 'ichigo_hollow': 9102, 'ichigo_mugetsu': 9103,
          'ichigo_shinbankai': 9104, 'ichigo_vastolorde': 9105,
-         'chouginga': 9201, 'tengen': 9202}   # 變身造型
+         'chouginga': 9201, 'tengen': 9202,
+         'qiye_scout': 9301}   # 柒爺（最終頭目）童軍形態   # 變身造型
 ANIMS = {'idle': 'Idle', 'walk': 'Walk', 'attack': 'Attack', 'shoot': 'Shoot',
          'charge': 'Charge', 'hurt': 'Hurt', 'faint': 'Faint'}
 # 身高（像素，按每張圖格仔高度嘅中位數計）。32 ≈ 寶可夢人形角色（路卡利歐約 27–29）
