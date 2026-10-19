@@ -25,7 +25,8 @@ ANIMS = {'idle': 'Idle', 'walk': 'Walk', 'attack': 'Attack', 'shoot': 'Shoot',
 # 身高（像素，按每張圖格仔高度嘅中位數計）。32 ≈ 寶可夢人形角色（路卡利歐約 27–29）
 HEIGHT = {'Idle': 32, 'Walk': 32, 'Attack': 32, 'Shoot': 32, 'Charge': 32, 'Hurt': 32, 'Faint': 32}
 # 某啲動作只用頭幾格（例如 Gemini 將待機畫成踏步，就只要第 1 格）：(角色, 動作) -> 格數
-KEEP = {('ichigo_shinbankai', 'Idle'): 1}
+KEEP = {('ichigo_shinbankai', 'Idle'): 1,
+        ('ichigo_hollow', 'Idle'): 1, ('ichigo_hollow', 'Hurt'): 1}   # 虛化 misc：待機同受傷畫咗做行路，只用第 1 格
 # 每格時間（1/60 秒），按格數平均分配
 DUR = {'Idle': 10, 'Walk': 8, 'Attack': 4, 'Shoot': 5, 'Charge': 6, 'Hurt': 6, 'Faint': 10}
 # 合併圖（一張圖多行，由上至下）：檔名 -> 每行係 (動作, 方向)
