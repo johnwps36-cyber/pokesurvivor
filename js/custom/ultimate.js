@@ -791,7 +791,27 @@
       c.restore();
     }
   }
-  const GAUGE_ART = { 9002: drawMask, 9003: drawSpiralDisc };
+  // 一護：虛化面具（Gemini 圖），由下巴向上慢慢成形；滿咗紅光閃
+  const maskImg = new Image();
+  maskImg.src = 'assets/custom/gauge_mask.png';
+  function drawMaskImg(c, frac, ready, active, t) {
+    if (!maskImg.complete || !maskImg.naturalWidth) return drawMask(c, frac, ready, active, t);
+    c.clearRect(0, 0, 140, 140);
+    c.save(); c.globalAlpha = 0.2; c.drawImage(maskImg, 0, 0, 140, 140); c.restore();
+    const y = 136 - 132 * Math.max(0, Math.min(1, frac));
+    c.save(); c.beginPath(); c.rect(0, y, 140, 140); c.clip(); c.drawImage(maskImg, 0, 0, 140, 140); c.restore();
+    if (frac > 0.02 && frac < 0.999) {           // 成形前線：紅線
+      c.save(); c.globalCompositeOperation = 'source-atop';
+      c.fillStyle = 'rgba(255,40,60,.85)'; c.fillRect(0, y - 1, 140, 3); c.restore();
+    }
+    if (ready || active) {
+      const p = 0.5 + Math.sin(t * 6) * 0.5;
+      c.save(); c.globalCompositeOperation = 'destination-over';
+      c.shadowColor = '#ff2030'; c.shadowBlur = 12 + p * 14;
+      c.drawImage(maskImg, 0, 0, 140, 140); c.restore();
+    }
+  }
+  const GAUGE_ART = { 9002: drawMaskImg, 9003: drawSpiralDisc };
 
   function makeBtn(id, onTap, onLong) {
     const b = document.createElement('button');
