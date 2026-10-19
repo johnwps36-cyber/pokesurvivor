@@ -29,12 +29,13 @@
     9003: {
       forms: [
         { name: '紅蓮', lv: 1, dex: 9003, mods: {}, tint: '#e83020' },
-        { name: '超銀河', lv: 30, dex: 9201, mods: { dmg: 1.2, spd: 0.85 }, fan: 3, tint: '#ffc830' }
+        { name: '超銀河', lv: 30, dex: 9201, mods: { dmg: 1.2, spd: 0.85 }, fan: 3, tint: '#ffc830' },
+        { name: '天元', lv: 60, dex: 9202, mods: { dmg: 1.6, spd: 0.8, cd: 1.2 }, fan: 3, bigDrill: true, tint: '#40ff70' }
       ],
       ults: [
         { name: '極巨鑽頭破', lv: 1, dur: 0.8, god: true, drill: true, tint: '#e83020', say: '極巨鑽頭破！' },
-        { name: '天元突破', lv: 60, dur: 15, mods: { dmg: 2.5 }, god: true, big: 1.6, drillNova: 8, finale: true,
-          form: 9202, tint: '#40ff70', say: '天元突破・紅蓮螺巖！' }
+        { name: '超天元突破', lv: 60, dur: 12, mods: { dmg: 2.5 }, god: true, planets: 0.8, finale: true, giant: true,
+          tint: '#40ffd0', say: '超天元突破・紅蓮螺巖！' }
       ]
     },
     9001: {
@@ -59,6 +60,30 @@
     for (let y = 1; y <= 7; y++) { P.set(0, y, 'd'); P.set(1, y, 'm'); }
     P.outline();
   } };
+  // 天元突破形態用嘅巨型鑽頭（大一倍）
+  G.VFX.SHAPES.drillBig = { w: 29, h: 17, dir: true, frames: 2, gen(P, f) {
+    P.fill((x, y) => {
+      const half = 8.2 * (1 - x / 28), d = Math.abs(y - 8);
+      if (x < 3 || d > half + 0.3) return null;
+      const stripe = (x + f * 3 + (y < 8 ? 0 : 2)) % 6 < 3;
+      return y < 8 ? (stripe ? 'w' : 'l') : (stripe ? 'l' : 'm');
+    });
+    for (let y = 2; y <= 14; y++) { P.set(0, y, 'd'); P.set(1, y, 'm'); P.set(2, y, 'm'); }
+    P.outline();
+  } };
+  // 天元突破形態：所有鑽頭飛彈變巨型，穿透多 3 隻
+  const projSpawn = G.Projectiles.spawn;
+  G.Projectiles.spawn = function (o) {
+    const pl = G.Game.player;
+    if (pl && o && o.owner === pl && o.vis && o.vis.proj === 'drill') {
+      const f = curForm(pl);
+      if (f && f.bigDrill) {
+        o.vis = { proj: 'drillBig', pal: 'steel', trail: 'spark' };
+        o.r = (o.r || 9) * 1.8; o.pierce = (o.pierce || 0) + 3;
+      }
+    }
+    return projSpawn.apply(this, arguments);
+  };
   const forMove = G.VFX.forMove;
   G.VFX.forMove = m => m && m.id === 'drill-missile' ? { proj: 'drill', pal: 'steel', trail: 'spark' } : forMove(m);
 
@@ -97,18 +122,104 @@
     G.FX.burst(pl.x, pl.y - 20, '#ffd060', 40, 300);
   }
 
-  // 天元突破完結：清走全畫面普通敵人，頭目扣 40% 血
-  function tengenFinale(pl) {
-    for (const e of G.EnemyMgr.all().filter(e => !e.dead)) {
-      e.hurt(e.boss ? e.maxHp * 0.4 : e.hp + 1, '#40ff70', e.x - pl.x, e.y - pl.y, 0, 'crit');
+  // ---------------- 超天元突破：掟星球 ----------------
+  const PLANET_KINDS = [
+    { base: '#2a7ae0', dark: '#123a80', spot: '#40c060', ring: null },           // 地球
+    { base: '#e06a30', dark: '#803018', spot: '#ffb070', ring: null },           // 火星
+    { base: '#a060e0', dark: '#4a2080', spot: '#e0b0ff', ring: '#ffe0a0' },      // 有環氣體星球
+    { base: '#e0c060', dark: '#806020', spot: '#fff0b0', ring: '#c0a060' }       // 土星
+  ];
+  const planets = [];
+  // 由空中掟落 (tx, ty)：落地爆炸。big = 完結嗰個超巨型星球
+  function throwPlanet(pl, tx, ty, big) {
+    const k = PLANET_KINDS[Math.floor(Math.random() * PLANET_KINDS.length)];
+    const sx = pl.x + (Math.random() - 0.5) * 120, sy = pl.y - (big ? 900 : 420);
+    planets.push({ pl, sx, sy, tx, ty, x: sx, y: sy, t: 0, life: big ? 0.9 : 0.5, R: big ? 220 : 26,
+                   blast: big ? 99999 : 110, big, k, spin: Math.random() * 6 });
+  }
+  function planetHit(o) {
+    const pl = o.pl;
+    if (o.big) {
+      for (const e of G.EnemyMgr.all().filter(e => !e.dead)) {
+        e.hurt(e.boss ? e.maxHp * 0.4 : e.hp + 1, '#40ffd0', e.x - o.tx, e.y - o.ty, 0, 'crit');
+      }
+      G.FX.ring(o.tx, o.ty, 20, 900, '#40ffd0', 1.0, 14);
+      G.Game.flash('#ffffff', 0.7);
+      G.Camera.kick(0.6);
+    } else {
+      for (const e of G.EnemyMgr.queryCircle(o.tx, o.ty, o.blast)) {
+        if (e.dead) continue;
+        e.hurt(e.boss ? e.maxHp * 0.08 : e.hp + 1, o.k.base, e.x - o.tx, e.y - o.ty, 140, 'crit');
+      }
+      G.FX.ring(o.tx, o.ty, 10, o.blast * 1.2, o.k.spot, 0.45, 6);
+      G.Camera.kick(0.18);
     }
-    for (let i = 0; i < 16; i++) {
-      const a = i / 16 * 6.2832;
-      G.FX.sp('drill', 'steel', pl.x + Math.cos(a) * 60, pl.y + Math.sin(a) * 60 - 20, { life: 0.8, angle: a, scale: 4, vx: Math.cos(a) * 500, vy: Math.sin(a) * 500 });
+    G.FX.burst(o.tx, o.ty - 10, o.k.spot, o.big ? 80 : 30, o.big ? 600 : 260);
+    G.FX.burst(o.tx, o.ty - 10, '#ffffff', o.big ? 40 : 12, o.big ? 500 : 200);
+    if (pl === G.Game.player) G.Audio.sfx(o.big ? 'legend' : 'shot', { kind: 'nova', type: 'rock' });
+  }
+  function throwNext(pl) {
+    const near = G.EnemyMgr.all().filter(e => !e.dead && Math.hypot(e.x - pl.x, e.y - pl.y) < 520)
+      .sort((a, b) => Math.hypot(a.x - pl.x, a.y - pl.y) - Math.hypot(b.x - pl.x, b.y - pl.y));
+    const e = near.length ? near[Math.floor(Math.random() * Math.min(5, near.length))] : null;
+    const a = Math.random() * 6.2832;
+    throwPlanet(pl, e ? e.x : pl.x + Math.cos(a) * 200, e ? e.y : pl.y + Math.sin(a) * 200, false);
+  }
+  // 像素星球（直接畫格仔）
+  function drawPlanet(ctx, o) {
+    const P = G.Sprites.PX, R = Math.max(P * 3, Math.round(o.R / P) * P), k = o.k;
+    const cx = Math.round(o.x / P) * P, cy = Math.round(o.y / P) * P;
+    // 光尾
+    const dx = o.tx - o.sx, dy = o.ty - o.sy, L = Math.hypot(dx, dy) || 1;
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = '#40ffd0';
+    for (let i = 1; i <= 6; i++) {
+      const rr = R * (1 - i / 8);
+      ctx.beginPath(); ctx.arc(cx - dx / L * R * 0.5 * i, cy - dy / L * R * 0.5 * i, rr, 0, 6.2832); ctx.fill();
     }
-    G.FX.ring(pl.x, pl.y, 20, 900, '#40ff70', 1.0, 14);
-    G.Game.flash('#40ff70', 0.6);
-    G.Camera.kick(0.5);
+    ctx.globalAlpha = 1;
+    for (let v = -R; v < R; v += P) for (let u = -R; u < R; u += P) {
+      const d = Math.hypot(u + P / 2, v + P / 2);
+      if (d > R) continue;
+      const lit = (-(u) * 0.6 - (v) * 0.8) / R;
+      const band = Math.sin((v / R) * 5 + o.spin + (u / R)) > 0.55;
+      ctx.fillStyle = d > R - P ? '#101018' : band ? k.spot : lit > 0.3 ? k.base : lit > -0.4 ? k.base : k.dark;
+      if (lit < -0.4 && !band) ctx.fillStyle = k.dark;
+      ctx.fillRect(cx + u, cy + v, P, P);
+    }
+    if (k.ring) {
+      ctx.strokeStyle = k.ring; ctx.lineWidth = Math.max(P, R / 8);
+      ctx.beginPath(); ctx.ellipse(cx, cy, R * 1.6, R * 0.4, -0.3, 0, 6.2832); ctx.stroke();
+    }
+  }
+
+  // 超天元突破：背後巨大透明身影（青綠身、紅披風、紅眼鏡）
+  function drawGiant(ctx, pl, t) {
+    const H = 190, x = pl.x, y = pl.y + 10, a = 0.28 + Math.sin(t / 7) * 0.05;
+    ctx.save();
+    ctx.translate(x, y); ctx.scale(0.8, 0.8); ctx.translate(-x, -y);   // 大約公仔 3 倍高
+    ctx.globalAlpha = a;
+    // 披風
+    ctx.fillStyle = '#e83848';
+    ctx.beginPath();
+    ctx.moveTo(x - 40, y - H * 0.85);
+    ctx.quadraticCurveTo(x - 130, y - H * 0.5, x - 115 + Math.sin(t / 5) * 12, y);
+    ctx.lineTo(x + 115 + Math.sin(t / 6) * 12, y);
+    ctx.quadraticCurveTo(x + 130, y - H * 0.5, x + 40, y - H * 0.85);
+    ctx.closePath(); ctx.fill();
+    // 身體
+    ctx.fillStyle = '#5ff0d0';
+    ctx.beginPath(); ctx.ellipse(x, y - H * 0.55, 48, H * 0.42, 0, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = '#9ffff0';
+    ctx.beginPath(); ctx.ellipse(x - 14, y - H * 0.62, 20, H * 0.25, 0, 0, 6.2832); ctx.fill();
+    // 頭同紅色太陽眼鏡
+    ctx.globalAlpha = Math.min(1, a * 2.2);
+    ctx.fillStyle = '#ff2030';
+    ctx.beginPath();
+    ctx.moveTo(x, y - H * 0.9); ctx.lineTo(x - 50, y - H * 1.02); ctx.lineTo(x - 22, y - H * 0.86);
+    ctx.lineTo(x, y - H * 0.82); ctx.lineTo(x + 22, y - H * 0.86); ctx.lineTo(x + 50, y - H * 1.02);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
   }
 
   function defaultUlt(pl) {
@@ -202,7 +313,7 @@
 
   function end(pl) {
     const u = S.active;
-    if (u.finale && !pl.dead) tengenFinale(pl);
+    if (u.finale && !pl.dead) throwPlanet(pl, pl.x, pl.y - 20, true);
     applyMods(pl, u.mods, false);
     S.active = null;
     restoreSprite(pl);
@@ -277,10 +388,15 @@
   const fxUpdate = G.FX.update;
   G.FX.update = function (dt) {
     for (let i = moons.length - 1; i >= 0; i--) if ((moons[i].t += dt) >= moons[i].life) moons.splice(i, 1);
+    for (let i = planets.length - 1; i >= 0; i--) {
+      const o = planets[i], k = Math.min(1, (o.t += dt) / o.life), e = k * k;
+      o.x = o.sx + (o.tx - o.sx) * e; o.y = o.sy + (o.ty - o.sy) * e; o.spin += dt * 3;
+      if (k >= 1) { planets.splice(i, 1); planetHit(o); }
+    }
     return fxUpdate.apply(this, arguments);
   };
   const fxClear = G.FX.clear;
-  G.FX.clear = function () { moons.length = 0; return fxClear.apply(this, arguments); };
+  G.FX.clear = function () { moons.length = 0; planets.length = 0; return fxClear.apply(this, arguments); };
 
   // 像素月牙：喺前面個圓入面、後面個圓外面嘅格仔（中間厚、兩頭尖）
   function drawMoon(ctx, o, u0, R, alpha) {
@@ -310,6 +426,8 @@
       drawMoon(ctx, o, Math.round(o.len * ease), R, fade);
       ctx.restore();
     }
+    ctx.globalAlpha = 1;
+    for (const o of planets) drawPlanet(ctx, o);
     ctx.globalAlpha = 1;
     return r;
   };
@@ -352,11 +470,7 @@
     if (S.formCd > 0) S.formCd = Math.max(0, S.formCd - dt);
     if (S.active) {
       if (S.active.cero && (S.ceroT -= dt) <= 0) { S.ceroT = 0.7; cero(this); }
-      if (S.active.drillNova && (S.ceroT -= dt) <= 0) {
-        S.ceroT = 1;
-        const n = S.active.drillNova, off = Math.random();
-        for (let i = 0; i < n; i++) spawnDrill(this, (i + off) / n * 6.2832, 40 * this.atk, { pierce: 6, size: 14, life: 1.2, speed: 340 });
-      }
+      if (S.active.planets && (S.ceroT -= dt) <= 0) { S.ceroT = S.active.planets; throwNext(this); }
       if ((S.t -= dt) <= 0 || this.dead) end(this);
     }
     // 新解鎖提示
@@ -384,6 +498,7 @@
       ctx.restore();
       if (Math.random() < 0.25) G.FX.burst(this.x + (Math.random() - 0.5) * 20, this.y - Math.random() * 36, fm.tint, 1, 50);
     }
+    if (this === G.Game.player && S.active && S.active.giant && !this.dead) drawGiant(ctx, this, performance.now() / 90);
     if (this === G.Game.player && S.active && S.active.big && !this.dead) {
       // 天元突破：公仔放大（以腳底做中心）
       const k = S.active.big;

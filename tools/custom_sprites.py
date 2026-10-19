@@ -20,7 +20,7 @@ ROOT = os.path.join(os.path.dirname(__file__), '..')
 CHARS = {'zenitsu': 9001, 'ichigo': 9002, 'gurren': 9003,
          'ichigo_bankai': 9101, 'ichigo_hollow': 9102, 'ichigo_mugetsu': 9103,
          'ichigo_shinbankai': 9104, 'ichigo_vastolorde': 9105,
-         'chouginga': 9201}   # 變身造型
+         'chouginga': 9201, 'tengen': 9202}   # 變身造型
 ANIMS = {'idle': 'Idle', 'walk': 'Walk', 'attack': 'Attack', 'shoot': 'Shoot',
          'charge': 'Charge', 'hurt': 'Hurt', 'faint': 'Faint'}
 # 身高（像素，按每張圖格仔高度嘅中位數計）。32 ≈ 寶可夢人形角色（路卡利歐約 27–29）
@@ -29,12 +29,16 @@ HEIGHT = {'Idle': 32, 'Walk': 32, 'Attack': 32, 'Shoot': 32, 'Charge': 32, 'Hurt
 KEEP = {('ichigo_hollow', 'Idle'): 1, ('ichigo_hollow', 'Hurt'): 1,
         ('ichigo_vastolorde', 'Idle'): 1, ('ichigo_vastolorde', 'Hurt'): 1}   # Gemini 將待機同受傷畫咗做行路：只用第 1 格
 # 某行入面畫錯嘅格（例如背面行第 1 格畫咗正面）：(角色, 動作, 方向) -> 要刪嘅格（由 0 數）
-DROP = {('ichigo_shinbankai', 'Walk', 'up'): [0], ('chouginga', 'Walk', 'right'): [0]}   # 超銀河行路右第 1 格畫咗正面
+DROP = {('ichigo_shinbankai', 'Walk', 'up'): [0], ('chouginga', 'Walk', 'right'): [0],
+        ('tengen', 'Walk', 'up'): [0]}   # 超銀河行路右第 1 格畫咗正面
 # 格仔之間貼得太埋（例如上面隻腳掂到下面隻角）：(角色, 檔名) -> (行數, 列數)。喺最空嘅位置切開
 SPLIT = {('gurren', 'idle_right'): (2, 1), ('gurren', 'walk_right'): (2, 1),
-         ('chouginga', 'idle_right'): (2, 2), ('chouginga', 'shoot_down'): (2, 2), ('chouginga', 'shoot_right'): (2, 2)}
+         ('chouginga', 'idle_right'): (2, 2), ('chouginga', 'shoot_down'): (2, 2), ('chouginga', 'shoot_right'): (2, 2),
+         ('tengen', 'tengen_all'): (4, 1)}
 # 某啲造型畫大啲（例如超銀河：變身之後應該大過本體）：角色 -> 倍數
-SCALE = {'chouginga': 1.2}
+SCALE = {'chouginga': 1.2, 'tengen': 1.35}
+# 只有正面待機嘅角色：其他方向用行路第 1 格
+IDLE_FROM_WALK = {'tengen'}
 # 外光（全身黑色嘅造型縮細之後會溶入背景）：角色 -> 外圈顏色
 GLOW = {'ichigo_mugetsu': (120, 70, 200)}
 # 每格時間（1/60 秒），按格數平均分配
@@ -45,6 +49,7 @@ COMBINED = {
     'shoot_all': [('shoot', 'down'), ('shoot', 'right'), ('shoot', 'up')],
     'attack_all': [('attack', 'down'), ('attack', 'right'), ('attack', 'up')],
     'misc':      [('idle', 'down'), ('hurt', 'down'), ('faint', 'down')],
+    'tengen_all': [('idle', 'down'), ('walk', 'down'), ('walk', 'right'), ('walk', 'up')],
 }
 # 8 行：0 下 1 右下 2 右 3 右上 4 上 5 左上 6 左 7 左下
 ROWS = ['down', 'downright', 'right', 'upright', 'up', 'upleft', 'left', 'downleft']
@@ -109,7 +114,7 @@ def build_char(name, dex):
     pre = {}               # (anim, 方向) -> 已切好嘅 frames
     for base, f in combined:
         layout = COMBINED[base]
-        rows = frames_from_sheet(Image.open(f), HEIGHT[ANIMS[layout[0][0]]], by_row=True)
+        rows = frames_from_sheet(open_sheet(name, f), round(HEIGHT[ANIMS[layout[0][0]]] * SCALE.get(name, 1)), by_row=True)
         if len(rows) != len(layout):
             print(f'  ⚠ {name}/{base}: 搵到 {len(rows)} 行，應該係 {len(layout)} 行，跳過')
             continue
@@ -117,12 +122,16 @@ def build_char(name, dex):
             # 唔同動作嘅高度唔同：按目標高度比例縮放
             k = HEIGHT[ANIMS[a]] / HEIGHT[ANIMS[layout[0][0]]]
             if k != 1: fr = [x.resize((max(1, round(x.width * k)), max(1, round(x.height * k))), Image.NEAREST) for x in fr]
-            k2 = SCALE.get(name, 1)
-            if k2 != 1: fr = [x.resize((max(1, round(x.width * k2)), max(1, round(x.height * k2))), Image.NEAREST) for x in fr]
             drop = DROP.get((name, ANIMS[a], d), [])
             if drop: fr = [x for i, x in enumerate(fr) if i not in drop]
             pre[(ANIMS[a], d)] = fr
             by_anim.setdefault(ANIMS[a], {})[d] = None
+    # 只畫咗正面待機：其他方向用行路第 1 格做靜止待機
+    if name in IDLE_FROM_WALK:
+        for d in list(by_anim.get('Walk', {})):
+            if d not in by_anim.get('Idle', {}) and ('Walk', d) in pre:
+                pre[('Idle', d)] = [pre[('Walk', d)][0]]
+                by_anim.setdefault('Idle', {})[d] = None
     if not by_anim: return None
     out_dir = os.path.join(ROOT, 'assets', 'pokemon', str(dex))
     os.makedirs(out_dir, exist_ok=True)
