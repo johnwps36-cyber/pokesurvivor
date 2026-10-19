@@ -34,8 +34,8 @@
       ],
       ults: [
         { name: '極巨鑽頭破', lv: 1, dur: 0.8, god: true, drill: true, tint: '#e83020', say: '極巨鑽頭破！' },
-        { name: '超天元突破', lv: 60, dur: 12, mods: { dmg: 2.5 }, god: true, planets: 0.6, finale: true, giant: true,
-          tint: '#40ffd0', say: '超天元突破・紅蓮螺巖！' }
+        { name: '超天元突破', lv: 60, dur: 12, mods: { dmg: 2.5 }, god: true, planets: 0.8, finale: true, cosmos: true,
+          intro: ['超天元突破', '紅蓮螺巖'], tint: '#40ffd0', say: '超天元突破・紅蓮螺巖！' }
       ]
     },
     9001: {
@@ -133,9 +133,11 @@
   // 由空中掟落 (tx, ty)：落地爆炸。big = 完結嗰個超巨型星球
   function throwPlanet(pl, tx, ty, big) {
     const k = PLANET_KINDS[Math.floor(Math.random() * PLANET_KINDS.length)];
-    const sx = pl.x + (Math.random() - 0.5) * 160, sy = pl.y - (big ? 520 : 300);
-    planets.push({ pl, sx, sy, tx, ty, x: sx, y: sy, t: 0, life: big ? 1.3 : 0.65, R: big ? 150 : 34,
-                   blast: big ? 99999 : 110, big, k, spin: Math.random() * 6 });
+    const cam = G.Camera, top = cam.top() - (big ? 260 : 60);
+    const side = Math.random() < 0.5 ? -1 : 1;
+    const sx = big ? pl.x : pl.x + side * (90 + Math.random() * 60), sy = big ? top - 120 : top;
+    planets.push({ pl, sx, sy, tx, ty, x: sx, y: sy, t: 0, life: big ? 1.6 : 0.7, R: big ? Math.round(cam.h * 0.75) : 44,
+                   blast: big ? 99999 : 150, big, k, spin: Math.random() * 6 });
   }
   function planetHit(o) {
     const pl = o.pl;
@@ -151,8 +153,10 @@
         if (e.dead) continue;
         e.hurt(e.boss ? e.maxHp * 0.08 : e.hp + 1, o.k.base, e.x - o.tx, e.y - o.ty, 140, 'crit');
       }
-      G.FX.ring(o.tx, o.ty, 10, o.blast * 1.2, o.k.spot, 0.45, 6);
-      G.Camera.kick(0.18);
+      G.FX.ring(o.tx, o.ty, 10, o.blast * 1.3, o.k.spot, 0.5, 8);
+      G.FX.ring(o.tx, o.ty, 6, o.blast * 0.8, '#ffffff', 0.35, 4);
+      cracks.push({ x: o.tx, y: o.ty, t: 0, life: 2.2, seed: Math.random() * 1000, R: o.blast * 0.9 });
+      G.Camera.kick(0.28);
     }
     G.FX.burst(o.tx, o.ty - 10, o.k.spot, o.big ? 80 : 30, o.big ? 600 : 260);
     G.FX.burst(o.tx, o.ty - 10, '#ffffff', o.big ? 40 : 12, o.big ? 500 : 200);
@@ -164,10 +168,129 @@
     const e = near.length ? near[Math.floor(Math.random() * Math.min(5, near.length))] : null;
     const a = Math.random() * 6.2832;
     throwPlanet(pl, e ? e.x : pl.x + Math.cos(a) * 200, e ? e.y : pl.y + Math.sin(a) * 200, false);
+    // 每次掟兩個
+    const e2 = near.length > 1 ? near[Math.floor(Math.random() * near.length)] : null;
+    const a2 = Math.random() * 6.2832;
+    setTimeout(() => throwPlanet(pl, e2 ? e2.x : pl.x + Math.cos(a2) * 240, e2 ? e2.y : pl.y + Math.sin(a2) * 240, false), 180);
   }
+
+  // ---------------- 超天元突破：宇宙背景、巨人、地面裂紋、開場大字 ----------------
+  const cracks = [];
+  const giantImg = new Image();
+  giantImg.src = 'assets/custom/super_tengen.png';
+  const COSMOS = { a: 0, on: false };       // 宇宙背景透明度（漸入漸出）
+  // 固定位置嘅星（螢幕座標 0..1）
+  const STARS = Array.from({ length: 90 }, (_, i) => ({ x: (Math.sin(i * 12.9898) * 43758.5453) % 1, y: (Math.sin(i * 78.233) * 12345.678) % 1,
+                                               r: 1 + (i % 3), tw: i * 0.7 })).map(o => ({ ...o, x: Math.abs(o.x), y: Math.abs(o.y) }));
+  function drawCosmos(ctx) {
+    const cam = G.Camera, L = cam.left(), T = cam.top(), W = cam.w, H = cam.h, a = COSMOS.a;
+    if (a <= 0.01) return;
+    const now = performance.now() / 1000;
+    ctx.save();
+    // 深空
+    ctx.globalAlpha = a * 0.88;
+    ctx.fillStyle = '#04051a';
+    ctx.fillRect(L - 20, T - 20, W + 40, H + 40);
+    // 銀河（兩個慢慢轉嘅螺旋）
+    for (const [gx, gy, gr, col, sp] of [[0.18, 0.28, 0.16, '#8a6aff', 0.15], [0.84, 0.7, 0.12, '#4fe8d0', -0.2]]) {
+      const cx = L + W * gx, cy = T + H * gy, R = H * gr;
+      for (let i = 0; i < 70; i++) {
+        const k = i / 70, ang = k * 9 + now * sp, arm = i % 2 ? Math.PI : 0;
+        ctx.globalAlpha = a * (0.55 - k * 0.4);
+        ctx.fillStyle = i % 5 ? col : '#ffffff';
+        ctx.fillRect(cx + Math.cos(ang + arm) * R * k, cy + Math.sin(ang + arm) * R * k * 0.45, 3, 3);
+      }
+      ctx.globalAlpha = a * 0.7; ctx.fillStyle = '#ffffff';
+      ctx.fillRect(cx - 3, cy - 2, 6, 4);
+    }
+    // 星
+    ctx.fillStyle = '#ffffff';
+    for (const st of STARS) {
+      ctx.globalAlpha = a * (0.4 + 0.6 * Math.abs(Math.sin(now * 2 + st.tw)));
+      ctx.fillRect(L + st.x * W, T + st.y * H, st.r, st.r);
+    }
+    ctx.restore();
+  }
+  // 巨人：由畫面底一路高到頂，以玩家為中心
+  function drawGiantImg(ctx, pl) {
+    const cam = G.Camera, a = COSMOS.a;
+    if (a <= 0.01) return;
+    if (!giantImg.complete || !giantImg.naturalWidth) { drawGiant(ctx, pl, performance.now() / 90); return; }
+    const H = cam.h * 1.02, W = H * giantImg.naturalWidth / giantImg.naturalHeight;
+    const bob = Math.sin(performance.now() / 700) * 4;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.globalAlpha = a * 0.62;
+    ctx.drawImage(giantImg, Math.round(pl.x - W / 2), Math.round(cam.top() + cam.h - H + bob + 6), Math.round(W), Math.round(H));
+    ctx.restore();
+  }
+  function drawCracks(ctx) {
+    for (const c of cracks) {
+      const f = 1 - c.t / c.life;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, f * 1.5) * 0.85;
+      ctx.strokeStyle = '#1a0d08'; ctx.lineWidth = 3;
+      ctx.fillStyle = 'rgba(255,140,40,0.35)';
+      ctx.beginPath(); ctx.ellipse(c.x, c.y, c.R * 0.35, c.R * 0.16, 0, 0, 6.2832); ctx.fill();
+      for (let i = 0; i < 9; i++) {
+        let ang = i / 9 * 6.2832 + Math.sin(c.seed + i) * 0.3, x = c.x, y = c.y;
+        ctx.beginPath(); ctx.moveTo(x, y);
+        for (let j = 1; j <= 4; j++) {
+          ang += Math.sin(c.seed * 3 + i * 7 + j) * 0.5;
+          const step = c.R * 0.22;
+          x += Math.cos(ang) * step; y += Math.sin(ang) * step * 0.5;
+          ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+  // 地面層：宇宙背景 → 巨人 → 裂紋（全部喺敵人同玩家下面）
+  const groundFields = G.Combat.drawGroundFields;
+  G.Combat.drawGroundFields = function (ctx) {
+    const pl = G.Game.player;
+    if (pl) { drawCosmos(ctx); drawGiantImg(ctx, pl); }
+    drawCracks(ctx);
+    return groundFields.apply(this, arguments);
+  };
+
+  // 開場定格：借用遊戲本身嘅過場機制（全部停住、唔畫 HUD），1.6 秒
+  let introT = 0;
+  const J = G.Judgment;
+  const cineGet = Object.getOwnPropertyDescriptor(J, 'cinematic').get;
+  const musicGet = Object.getOwnPropertyDescriptor(J, 'music').get;
+  const realCine = () => cineGet.call(J);
+  Object.defineProperty(J, 'cinematic', { configurable: true, get() { return introT > 0 || realCine(); } });
+  Object.defineProperty(J, 'music', { configurable: true, get() { return introT > 0 && !realCine() ? null : musicGet.call(J); } });
+  const cineTick = J.cineTick, jSkip = J.skip;
+  J.cineTick = function (dt) {
+    if (introT > 0 && !realCine()) {
+      introT -= dt;
+      COSMOS.a = Math.min(1, COSMOS.a + dt * 1.5);
+      if (introT <= 0) { hideTitle(); G.Game.flash('#ffffff', 0.4); G.Camera.kick(0.6); }
+      return;
+    }
+    return cineTick.apply(this, arguments);
+  };
+  J.skip = function () { if (introT > 0 && !realCine()) { introT = 0.01; return; } return jSkip.apply(this, arguments); };
+
+  let titleEl = null;
+  function showTitle(lines) {
+    if (!titleEl) {
+      titleEl = document.createElement('div');
+      titleEl.id = 'ult-title';
+      titleEl.setAttribute('translate', 'no');
+      document.body.appendChild(titleEl);
+    }
+    titleEl.innerHTML = `<div class="ut-big">${lines[0]}</div><div class="ut-small">${lines[1] || ''}</div>`;
+    titleEl.classList.remove('go'); void titleEl.offsetWidth; titleEl.classList.add('go');
+    titleEl.style.display = 'flex';
+  }
+  function hideTitle() { if (titleEl) titleEl.style.display = 'none'; }
   // 像素星球（直接畫格仔）
   function drawPlanet(ctx, o) {
-    const P = G.Sprites.PX, R = Math.max(P * 3, Math.round(o.R / P) * P), k = o.k;
+    const P = Math.max(G.Sprites.PX, Math.round(o.R / 22)), R = Math.max(P * 3, Math.round(o.R / P) * P), k = o.k;   // 大星球用粗格，唔會慢
     const cx = Math.round(o.x / P) * P, cy = Math.round(o.y / P) * P;
     // 光尾
     const dx = o.tx - o.sx, dy = o.ty - o.sy, L = Math.hypot(dx, dy) || 1;
@@ -328,7 +451,8 @@
     S.active = u; S.t = u.dur; S.gauge = 0; S.ceroT = 0;
     applyMods(pl, u.mods, true);
     setSprite(pl, u.form);
-    G.Spawner.say(u.say || u.name, 2.6, true);
+    if (u.intro) { introT = 1.6; showTitle(u.intro); COSMOS.on = true; S.finaleOn = false; }
+    else G.Spawner.say(u.say || u.name, 2.6, true);
     G.Game.flash(u.tint, 0.5);
     G.FX.ring(pl.x, pl.y, 10, 260, u.tint, 0.7, 8);
     G.FX.burst(pl.x, pl.y - 20, u.tint, 60, 320);
@@ -340,7 +464,7 @@
 
   function end(pl) {
     const u = S.active;
-    if (u.finale && !pl.dead) throwPlanet(pl, pl.x, pl.y - 20, true);
+    COSMOS.on = false;
     applyMods(pl, u.mods, false);
     S.active = null;
     restoreSprite(pl);
@@ -415,6 +539,9 @@
   const fxUpdate = G.FX.update;
   G.FX.update = function (dt) {
     for (let i = moons.length - 1; i >= 0; i--) if ((moons[i].t += dt) >= moons[i].life) moons.splice(i, 1);
+    for (let i = cracks.length - 1; i >= 0; i--) if ((cracks[i].t += dt) >= cracks[i].life) cracks.splice(i, 1);
+    if (!COSMOS.on && COSMOS.a > 0) COSMOS.a = Math.max(0, COSMOS.a - dt * 1.2);
+    if (COSMOS.on && COSMOS.a < 1) COSMOS.a = Math.min(1, COSMOS.a + dt * 1.5);
     for (let i = planets.length - 1; i >= 0; i--) {
       const o = planets[i], k = Math.min(1, (o.t += dt) / o.life), e = k * k;
       o.x = o.sx + (o.tx - o.sx) * e; o.y = o.sy + (o.ty - o.sy) * e; o.spin += dt * 3;
@@ -423,7 +550,7 @@
     return fxUpdate.apply(this, arguments);
   };
   const fxClear = G.FX.clear;
-  G.FX.clear = function () { moons.length = 0; planets.length = 0; return fxClear.apply(this, arguments); };
+  G.FX.clear = function () { moons.length = 0; planets.length = 0; cracks.length = 0; COSMOS.on = false; COSMOS.a = 0; introT = 0; hideTitle(); return fxClear.apply(this, arguments); };
 
   // 像素月牙：喺前面個圓入面、後面個圓外面嘅格仔（中間厚、兩頭尖）
   function drawMoon(ctx, o, u0, R, alpha) {
@@ -497,8 +624,12 @@
     if (S.formCd > 0) S.formCd = Math.max(0, S.formCd - dt);
     if (S.active) {
       if (S.active.cero && (S.ceroT -= dt) <= 0) { S.ceroT = 0.7; cero(this); }
-      if (S.active.planets && (S.ceroT -= dt) <= 0) { S.ceroT = S.active.planets; throwNext(this); }
-      if ((S.t -= dt) <= 0 || this.dead) end(this);
+      if (S.active.planets && !S.finaleOn && (S.ceroT -= dt) <= 0) { S.ceroT = S.active.planets; throwNext(this); }
+      if ((S.t -= dt) <= 0 || this.dead) {
+        // 完結前：超巨型星球慢慢壓落嚟（期間仍然無敵）
+        if (S.active.finale && !S.finaleOn && !this.dead) { S.finaleOn = true; S.t = 1.9; throwPlanet(this, this.x, this.y - 20, true); }
+        else end(this);
+      }
     }
     // 新解鎖提示
     for (const f of forms(this)) if (!S.seen['f' + f.name]) { S.seen['f' + f.name] = 1; G.Spawner.say(f.name + ' 已解鎖！撳形態掣切換', 3, true); G.Game.flash(f.tint, 0.3); }
@@ -525,7 +656,6 @@
       ctx.restore();
       if (Math.random() < 0.25) G.FX.burst(this.x + (Math.random() - 0.5) * 20, this.y - Math.random() * 36, fm.tint, 1, 50);
     }
-    if (this === G.Game.player && S.active && S.active.giant && !this.dead) drawGiant(ctx, this, performance.now() / 90);
     if (this === G.Game.player && S.active && S.active.big && !this.dead) {
       // 天元突破：公仔放大（以腳底做中心）
       const k = S.active.big;
@@ -656,6 +786,19 @@
     #ult-btn.on { border-color: var(--cx, #ffd23f); }
     @keyframes cx-pulse { from { box-shadow: 0 0 6px 2px var(--cx, #ffd23f); } to { box-shadow: 0 0 22px 8px var(--cx, #ffd23f); } }
     @media (orientation: portrait) { #ult-btn { bottom: 120px; } #form-box { bottom: 200px; } }
+    #ult-title { position: fixed; inset: 0; z-index: 40; display: none; flex-direction: column; align-items: center;
+      justify-content: center; pointer-events: none; background: radial-gradient(ellipse at center, rgba(0,0,0,.35), rgba(0,0,0,.85)); }
+    #ult-title .ut-big { font: 900 clamp(48px, 13vw, 140px)/1 'Hiragino Mincho ProN','Noto Serif TC','Songti TC',serif;
+      color: #fff; letter-spacing: .04em; -webkit-text-stroke: 3px #c0102a;
+      text-shadow: 0 0 18px #40ffd0, 6px 6px 0 #c0102a, -2px -2px 0 #000; }
+    #ult-title .ut-small { margin-top: 10px; font: 900 clamp(22px, 5.5vw, 56px)/1 'Hiragino Mincho ProN','Noto Serif TC','Songti TC',serif;
+      color: #ff3040; letter-spacing: .3em; text-shadow: 3px 3px 0 #000, 0 0 12px #ff3040; }
+    #ult-title.go .ut-big { animation: ut-slam .45s cubic-bezier(.2,1.6,.4,1) both, ut-shake .5s .45s both; }
+    #ult-title.go .ut-small { animation: ut-in .4s .5s both; }
+    @keyframes ut-slam { from { transform: scale(3.2) rotate(-6deg); opacity: 0; } to { transform: scale(1) rotate(-3deg); opacity: 1; } }
+    @keyframes ut-shake { 0%,100% { transform: rotate(-3deg); } 20% { transform: translate(-6px,4px) rotate(-3deg); }
+      40% { transform: translate(5px,-5px) rotate(-3deg); } 60% { transform: translate(-4px,3px) rotate(-3deg); } 80% { transform: translate(3px,-2px) rotate(-3deg); } }
+    @keyframes ut-in { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
   `;
   document.head.appendChild(css);
 
