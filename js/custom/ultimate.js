@@ -34,7 +34,7 @@
       ],
       ults: [
         { name: '極巨鑽頭破', lv: 1, dur: 0.8, god: true, drill: true, tint: '#e83020', say: '極巨鑽頭破！' },
-        { name: '超天元突破', lv: 60, dur: 12, mods: { dmg: 2.5 }, god: true, planets: 0.8, finale: true, giant: true,
+        { name: '超天元突破', lv: 60, dur: 12, mods: { dmg: 2.5 }, god: true, planets: 0.6, finale: true, giant: true,
           tint: '#40ffd0', say: '超天元突破・紅蓮螺巖！' }
       ]
     },
@@ -133,8 +133,8 @@
   // 由空中掟落 (tx, ty)：落地爆炸。big = 完結嗰個超巨型星球
   function throwPlanet(pl, tx, ty, big) {
     const k = PLANET_KINDS[Math.floor(Math.random() * PLANET_KINDS.length)];
-    const sx = pl.x + (Math.random() - 0.5) * 120, sy = pl.y - (big ? 900 : 420);
-    planets.push({ pl, sx, sy, tx, ty, x: sx, y: sy, t: 0, life: big ? 0.9 : 0.5, R: big ? 220 : 26,
+    const sx = pl.x + (Math.random() - 0.5) * 160, sy = pl.y - (big ? 520 : 300);
+    planets.push({ pl, sx, sy, tx, ty, x: sx, y: sy, t: 0, life: big ? 1.3 : 0.65, R: big ? 150 : 34,
                    blast: big ? 99999 : 110, big, k, spin: Math.random() * 6 });
   }
   function planetHit(o) {
@@ -193,32 +193,59 @@
     }
   }
 
-  // 超天元突破：背後巨大透明身影（青綠身、紅披風、紅眼鏡）
+  // 超天元突破：背後巨大透明身影（青綠身、螺旋紋、紅披風、紅色太陽眼鏡），大約公仔 3.5 倍高
   function drawGiant(ctx, pl, t) {
-    const H = 190, x = pl.x, y = pl.y + 10, a = 0.28 + Math.sin(t / 7) * 0.05;
+    const H = 170, x = pl.x, y = pl.y + 6, w = Math.sin(t / 6);
     ctx.save();
-    ctx.translate(x, y); ctx.scale(0.8, 0.8); ctx.translate(-x, -y);   // 大約公仔 3 倍高
-    ctx.globalAlpha = a;
-    // 披風
-    ctx.fillStyle = '#e83848';
+    ctx.lineJoin = 'round';
+    // 披風（喺後面，隨風擺）
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = '#d82038';
     ctx.beginPath();
-    ctx.moveTo(x - 40, y - H * 0.85);
-    ctx.quadraticCurveTo(x - 130, y - H * 0.5, x - 115 + Math.sin(t / 5) * 12, y);
-    ctx.lineTo(x + 115 + Math.sin(t / 6) * 12, y);
-    ctx.quadraticCurveTo(x + 130, y - H * 0.5, x + 40, y - H * 0.85);
+    ctx.moveTo(x - 28, y - H * 0.82);
+    ctx.quadraticCurveTo(x - 120, y - H * 0.55, x - 105 + w * 10, y - 4);
+    ctx.lineTo(x - 60 + w * 6, y - 22); ctx.lineTo(x - 40, y - 2);
+    ctx.lineTo(x + 40, y - 2); ctx.lineTo(x + 60 - w * 6, y - 22);
+    ctx.lineTo(x + 105 - w * 10, y - 4);
+    ctx.quadraticCurveTo(x + 120, y - H * 0.55, x + 28, y - H * 0.82);
     ctx.closePath(); ctx.fill();
-    // 身體
-    ctx.fillStyle = '#5ff0d0';
-    ctx.beginPath(); ctx.ellipse(x, y - H * 0.55, 48, H * 0.42, 0, 0, 6.2832); ctx.fill();
-    ctx.fillStyle = '#9ffff0';
-    ctx.beginPath(); ctx.ellipse(x - 14, y - H * 0.62, 20, H * 0.25, 0, 0, 6.2832); ctx.fill();
-    // 頭同紅色太陽眼鏡
-    ctx.globalAlpha = Math.min(1, a * 2.2);
-    ctx.fillStyle = '#ff2030';
+    // 身體（半透明青綠，深色外框）
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = '#4fe8d0';
+    ctx.strokeStyle = '#1a6a70'; ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(x, y - H * 0.9); ctx.lineTo(x - 50, y - H * 1.02); ctx.lineTo(x - 22, y - H * 0.86);
-    ctx.lineTo(x, y - H * 0.82); ctx.lineTo(x + 22, y - H * 0.86); ctx.lineTo(x + 50, y - H * 1.02);
-    ctx.closePath(); ctx.fill();
+    ctx.moveTo(x - 22, y - H * 0.86);                       // 膊頭
+    ctx.lineTo(x - 46, y - H * 0.74); ctx.lineTo(x - 40, y - H * 0.42);   // 左手
+    ctx.lineTo(x - 26, y - H * 0.44); ctx.lineTo(x - 24, y - H * 0.08);   // 左腳
+    ctx.lineTo(x - 8, y - H * 0.08); ctx.lineTo(x, y - H * 0.38);
+    ctx.lineTo(x + 8, y - H * 0.08); ctx.lineTo(x + 24, y - H * 0.08);    // 右腳
+    ctx.lineTo(x + 26, y - H * 0.44); ctx.lineTo(x + 40, y - H * 0.42);
+    ctx.lineTo(x + 46, y - H * 0.74); ctx.lineTo(x + 22, y - H * 0.86);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // 螺旋紋
+    ctx.globalAlpha = 0.6;
+    ctx.strokeStyle = '#b8fff4'; ctx.lineWidth = 2;
+    for (const [cx, cy, r] of [[x - 12, y - H * 0.66, 9], [x + 14, y - H * 0.55, 7], [x - 6, y - H * 0.3, 6]]) {
+      ctx.beginPath();
+      for (let i = 0; i <= 24; i++) {
+        const a = i / 24 * 9 + t / 4, rr = r * i / 24;
+        const px = cx + Math.cos(a) * rr, py = cy + Math.sin(a) * rr;
+        i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+      }
+      ctx.stroke();
+    }
+    // 頭 + 紅色太陽眼鏡（實色，最搶眼）
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = '#4fe8d0';
+    ctx.beginPath(); ctx.ellipse(x, y - H * 0.9, 13, 11, 0, 0, 6.2832); ctx.fill();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = '#ff1a2a'; ctx.strokeStyle = '#600010'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, y - H * 0.9);
+    ctx.lineTo(x - 50, y - H * 1.04); ctx.lineTo(x - 30, y - H * 0.93); ctx.lineTo(x - 14, y - H * 0.86);
+    ctx.lineTo(x, y - H * 0.88);
+    ctx.lineTo(x + 14, y - H * 0.86); ctx.lineTo(x + 30, y - H * 0.93); ctx.lineTo(x + 50, y - H * 1.04);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.restore();
   }
 
