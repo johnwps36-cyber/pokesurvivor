@@ -684,12 +684,89 @@
   G.Game.startRun = function (...a) { const r = startRun.apply(this, a); reset(G.Game.player); return r; };
 
   // ---------------- 按鈕 ----------------
+  // ---------------- 必殺計量圖案（換走普通圓掣） ----------------
+  // 畫布 140×140；frac = 計量（發動中 = 剩餘時間）
+  // 一護：虛化面具，由下向上慢慢成形；滿咗出紅色條紋同紅光
+  function maskPath(c) {
+    c.beginPath();
+    c.moveTo(70, 14);
+    c.bezierCurveTo(108, 14, 122, 42, 118, 72);           // 右額
+    c.bezierCurveTo(116, 94, 104, 104, 96, 118);           // 右腮
+    c.lineTo(86, 128); c.lineTo(54, 128); c.lineTo(44, 118);   // 下巴
+    c.bezierCurveTo(36, 104, 24, 94, 22, 72);              // 左腮
+    c.bezierCurveTo(18, 42, 32, 14, 70, 14);
+    c.closePath();
+  }
+  function drawMask(c, frac, ready, active, t) {
+    c.clearRect(0, 0, 140, 140);
+    // 未儲到嘅部分：淡灰色
+    c.save(); maskPath(c); c.fillStyle = 'rgba(200,200,210,.18)'; c.fill(); c.restore();
+    // 已儲到：由下向上
+    const y = 128 - (128 - 14) * frac;
+    c.save();
+    c.beginPath(); c.rect(0, y, 140, 140); c.clip();
+    maskPath(c); c.fillStyle = '#f4f2ec'; c.fill();
+    c.lineWidth = 3; c.strokeStyle = '#222'; c.stroke();
+    // 紅色條紋（左邊，由額頭斜落眼）
+    if (frac > 0.5) {
+      c.globalAlpha = Math.min(1, (frac - 0.5) * 2);
+      c.fillStyle = '#c4102a';
+      for (const [x0, w] of [[34, 7], [46, 6], [57, 5]]) {
+        c.beginPath(); c.moveTo(x0, 22); c.lineTo(x0 + w, 20); c.lineTo(x0 + w + 6, 70); c.lineTo(x0 + 6, 72); c.closePath(); c.fill();
+      }
+      c.globalAlpha = 1;
+    }
+    // 眼窿
+    c.fillStyle = '#0a0a0a';
+    c.beginPath(); c.ellipse(50, 66, 13, 8, 0.35, 0, 6.2832); c.fill();
+    c.beginPath(); c.ellipse(90, 66, 13, 8, -0.35, 0, 6.2832); c.fill();
+    if (ready || active) {          // 黃色眼仁
+      c.fillStyle = '#ffd23f';
+      c.fillRect(48, 64, 4, 4); c.fillRect(88, 64, 4, 4);
+    }
+    // 牙齒
+    c.strokeStyle = '#222'; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(46, 104); c.lineTo(94, 104); c.stroke();
+    for (let x = 50; x <= 90; x += 6) { c.beginPath(); c.moveTo(x, 97); c.lineTo(x, 112); c.stroke(); }
+    c.restore();
+    // 滿咗：紅光一閃一閃
+    if (ready) {
+      c.save(); c.globalAlpha = 0.35 + Math.sin(t * 6) * 0.25;
+      maskPath(c); c.lineWidth = 6; c.strokeStyle = '#ff2030'; c.stroke(); c.restore();
+    }
+  }
+  // 紅蓮螺巖：螺旋力量計，綠色螺旋由中心向外伸；滿咗會轉同發光
+  function drawSpiral(c, frac, ready, active, t) {
+    c.clearRect(0, 0, 140, 140);
+    const turns = 3.2, max = turns * 6.2832, rot = active ? t * 6 : ready ? t * 2.5 : 0;
+    const pt = a => { const r = 6 + a / max * 52; return [70 + Math.cos(a + rot) * r, 70 + Math.sin(a + rot) * r]; };
+    const line = (to, w, col) => {
+      c.beginPath();
+      for (let a = 0; a <= to; a += 0.12) { const [x, y] = pt(a); a ? c.lineTo(x, y) : c.moveTo(x, y); }
+      c.lineWidth = w; c.strokeStyle = col; c.lineCap = 'round'; c.stroke();
+    };
+    line(max, 9, 'rgba(64,255,112,.14)');                 // 未儲到：淡綠
+    const to = max * frac;
+    if (to > 0.1) {
+      if (ready || active) { c.save(); c.shadowColor = '#40ff70'; c.shadowBlur = 18; line(to, 11, '#40ff70'); c.restore(); }
+      line(to, 9, '#1a9a3a');
+      line(to, 4, '#9affb0');
+      // 螺旋尖端（鑽頭頭）
+      const [x, y] = pt(to);
+      c.fillStyle = '#e8fff0'; c.beginPath(); c.arc(x, y, 5, 0, 6.2832); c.fill();
+    }
+    // 中心：紅色太陽眼鏡細標誌
+    c.fillStyle = '#e8202a';
+    c.beginPath(); c.moveTo(70, 66); c.lineTo(56, 60); c.lineTo(62, 70); c.lineTo(70, 72); c.lineTo(78, 70); c.lineTo(84, 60); c.closePath(); c.fill();
+  }
+  const GAUGE_ART = { 9002: drawMask, 9003: drawSpiral };
+
   function makeBtn(id, onTap, onLong) {
     const b = document.createElement('button');
     b.id = id;
     b.className = 'cx-btn';
     b.setAttribute('translate', 'no');
-    b.innerHTML = '<div class="cx-fill"></div><span class="cx-txt"></span>';
+    b.innerHTML = '<div class="cx-fill"></div><canvas class="cx-art" width="140" height="140"></canvas><span class="cx-txt"></span>';
     let timer = null, long = false;
     b.addEventListener('pointerdown', e => {
       e.preventDefault(); e.stopPropagation(); long = false;
@@ -733,10 +810,15 @@
       formBox.style.display = hasForms ? 'flex' : 'none';
       if (show) {
         const u = curUlt(pl), ready = !S.active && S.gauge >= GAUGE_MAX;
-        ultBtn.querySelector('.cx-fill').style.height = Math.round((S.active ? S.t / S.active.dur : S.gauge / GAUGE_MAX) * 100) + '%';
+        const frac = S.active ? Math.max(0, S.t / S.active.dur) : S.gauge / GAUGE_MAX;
+        ultBtn.querySelector('.cx-fill').style.height = Math.round(frac * 100) + '%';
         ultBtn.classList.toggle('ready', ready);
         ultBtn.classList.toggle('on', !!S.active);
+        const theme = GAUGE_ART[pl.mon.dex];
+        ultBtn.classList.toggle('art', !!theme);
+        if (theme) theme(ultBtn.querySelector('.cx-art').getContext('2d'), frac, ready, !!S.active, performance.now() / 1000);
         ultBtn.querySelector('.cx-txt').innerHTML = S.active ? Math.ceil(S.t) + 's'
+          : theme ? `<small class="cx-name">${u.name}</small><b>${ready ? '發動！' : Math.floor(S.gauge) + '%'}</b>`
           : `${u.name}<small>${ready ? '發動！' : Math.floor(S.gauge) + '%'}</small>`;
         ultBtn.style.setProperty('--cx', (S.active || u).tint);
       }
@@ -770,6 +852,14 @@
       color: #fff; font: 700 14px/1.1 sans-serif; text-shadow: 1px 1px 0 #000; -webkit-user-select: none; user-select: none; }
     .cx-btn .cx-fill { position: absolute; left: 0; right: 0; bottom: 0; background: var(--cx, #ffd23f); opacity: .55; }
     .cx-btn .cx-txt { position: relative; text-align: center; padding: 0 4px; }
+    .cx-btn .cx-art { position: absolute; left: 14%; top: 3%; width: 72%; height: 72%; display: none; pointer-events: none; }
+    .cx-btn.art .cx-art { display: block; }
+    .cx-btn.art .cx-fill { display: none; }
+    .cx-btn.art { background: rgba(6,8,20,.82); }
+    .cx-btn.art .cx-txt { align-self: flex-end; margin-bottom: 2px; font-size: 12px; line-height: 1; text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; }
+    .cx-btn.art .cx-txt b { display: block; }
+    .cx-btn.art .cx-name { display: none; }
+    .cx-btn.art.on .cx-txt, .cx-btn.art.ready .cx-txt { font-size: 13px; }
     .cx-btn small { display: block; font-size: 10px; opacity: .85; margin-top: 2px; }
     #ult-btn { bottom: 96px; }
     #form-box { position: fixed; right: max(18px, env(safe-area-inset-right)); bottom: 176px; z-index: 30;
