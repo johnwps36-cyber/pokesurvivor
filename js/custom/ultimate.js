@@ -17,7 +17,7 @@
       forms: [
         { name: '始解', lv: 1, dex: 9002, mods: {}, tint: '#ff8a2a' },
         { name: '卍解', lv: 15, dex: 9101, mods: { spd: 1.3, cd: 0.6, dmg: 0.85 }, tint: '#6a6a90' },
-        { name: '新卍解', lv: 60, dex: 9104, mods: { cd: 1.2 }, dual: true, tint: '#9aa0ff' }
+        { name: '血鎖', lv: 60, dex: 9104, mods: { cd: 1.2 }, dual: true, tint: '#ff3030' }
       ],
       ults: [
         { name: '虛化', lv: 1, dur: 15, mods: { dmg: 1.8, spd: 1.3, cd: 0.5 }, form: 9102, tint: '#c0102a', say: '虛化！' },
@@ -131,7 +131,7 @@
     G.Spawner.say(u.name + ' 結束', 1.4, true);
   }
 
-  // 一道直線攻擊（新卍解第二道月牙、虛閃共用）
+  // 一道直線攻擊（血鎖第二道月牙、虛閃共用）
   // 自訂光束顏色：虛閃紅黑、無月黑紫
   G.VFX.PAL.cero = ['#1a0004', '#5a0010', '#c0102a', '#ff3048', '#ffd0d8'];
   G.VFX.PAL.mugetsu = ['#000000', '#120820', '#2a1450', '#6a40c0', '#d8c8ff'];
@@ -181,7 +181,7 @@
     9002: ['#e8f6ff', '#5fb8ff'],   // 始解：淺藍白
     9101: ['#121018', '#e0303a'],   // 卍解：黑色紅邊
     9102: ['#1a0508', '#ff2030'],   // 虛化：黑紅
-    9104: ['#0e0e1c', '#62d6ff'],   // 新卍解：黑色藍邊
+    9104: ['#120606', '#ff2a2a'],   // 血鎖：黑色紅光邊
     9105: ['#2a0a10', '#ff5070'],   // 完全虛化
     9103: ['#05030a', '#8a60ff']    // 無月
   };
@@ -243,7 +243,7 @@
     // cast 之後即刻就係 Combat 嘅 beam()：嗰下改畫月牙
     moonNext = true;
     queueMicrotask(() => { moonNext = false; });
-    // 新卍解：月牙天衝一次射兩道
+    // 血鎖：月牙天衝一次射兩道
     const f = curForm(this);
     if (f && f.dual) {
       const pl = this, ang = pl.aim + 0.32;

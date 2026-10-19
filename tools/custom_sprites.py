@@ -25,9 +25,10 @@ ANIMS = {'idle': 'Idle', 'walk': 'Walk', 'attack': 'Attack', 'shoot': 'Shoot',
 # 身高（像素，按每張圖格仔高度嘅中位數計）。32 ≈ 寶可夢人形角色（路卡利歐約 27–29）
 HEIGHT = {'Idle': 32, 'Walk': 32, 'Attack': 32, 'Shoot': 32, 'Charge': 32, 'Hurt': 32, 'Faint': 32}
 # 某啲動作只用頭幾格（例如 Gemini 將待機畫成踏步，就只要第 1 格）：(角色, 動作) -> 格數
-KEEP = {('ichigo_shinbankai', 'Idle'): 1,
-        ('ichigo_hollow', 'Idle'): 1, ('ichigo_hollow', 'Hurt'): 1,
-        ('ichigo_vastolorde', 'Idle'): 1, ('ichigo_vastolorde', 'Hurt'): 1}   # 虛化 misc：待機同受傷畫咗做行路，只用第 1 格
+KEEP = {('ichigo_hollow', 'Idle'): 1, ('ichigo_hollow', 'Hurt'): 1,
+        ('ichigo_vastolorde', 'Idle'): 1, ('ichigo_vastolorde', 'Hurt'): 1}   # Gemini 將待機同受傷畫咗做行路：只用第 1 格
+# 某行入面畫錯嘅格（例如背面行第 1 格畫咗正面）：(角色, 動作, 方向) -> 要刪嘅格（由 0 數）
+DROP = {('ichigo_shinbankai', 'Walk', 'up'): [0]}
 # 每格時間（1/60 秒），按格數平均分配
 DUR = {'Idle': 10, 'Walk': 8, 'Attack': 4, 'Shoot': 5, 'Charge': 6, 'Hurt': 6, 'Faint': 10}
 # 合併圖（一張圖多行，由上至下）：檔名 -> 每行係 (動作, 方向)
@@ -76,6 +77,8 @@ def build_char(name, dex):
             # 唔同動作嘅高度唔同：按目標高度比例縮放
             k = HEIGHT[ANIMS[a]] / HEIGHT[ANIMS[layout[0][0]]]
             if k != 1: fr = [x.resize((max(1, round(x.width * k)), max(1, round(x.height * k))), Image.NEAREST) for x in fr]
+            drop = DROP.get((name, ANIMS[a], d), [])
+            if drop: fr = [x for i, x in enumerate(fr) if i not in drop]
             pre[(ANIMS[a], d)] = fr
             by_anim.setdefault(ANIMS[a], {})[d] = None
     if not by_anim: return None
@@ -103,9 +106,9 @@ def build_char(name, dex):
         print(f'  {name} {anim}: {n} 格 × {len(rows)} 行，{w}×{h}，來源方向 {sorted(have)}')
     if 'Idle' not in meta['a']:
         # 未有待機圖：用第一個動作嘅第 2 格（通常係企定嘅姿勢）做靜止待機，唔會成日郁
-        first = next(iter(meta['a']))
+        first = 'Walk' if 'Walk' in meta['a'] else next(iter(meta['a']))
         m = meta['a'][first]
-        k = 1 if m['n'] > 1 else 0
+        k = 0 if first == 'Walk' else (1 if m['n'] > 1 else 0)
         src = Image.open(os.path.join(out_dir, first + '.png'))
         src.crop((k * m['w'], 0, (k + 1) * m['w'], m['h'] * m['r'])).save(os.path.join(out_dir, 'Idle.png'), optimize=True)
         meta['a']['Idle'] = dict(m, n=1, d=[60])
