@@ -29,6 +29,8 @@ KEEP = {('ichigo_hollow', 'Idle'): 1, ('ichigo_hollow', 'Hurt'): 1,
         ('ichigo_vastolorde', 'Idle'): 1, ('ichigo_vastolorde', 'Hurt'): 1}   # Gemini 將待機同受傷畫咗做行路：只用第 1 格
 # 某行入面畫錯嘅格（例如背面行第 1 格畫咗正面）：(角色, 動作, 方向) -> 要刪嘅格（由 0 數）
 DROP = {('ichigo_shinbankai', 'Walk', 'up'): [0]}
+# 外光（全身黑色嘅造型縮細之後會溶入背景）：角色 -> 外圈顏色
+GLOW = {'ichigo_mugetsu': (120, 70, 200)}
 # 每格時間（1/60 秒），按格數平均分配
 DUR = {'Idle': 10, 'Walk': 8, 'Attack': 4, 'Shoot': 5, 'Charge': 6, 'Hurt': 6, 'Faint': 10}
 # 合併圖（一張圖多行，由上至下）：檔名 -> 每行係 (動作, 方向)
@@ -54,6 +56,17 @@ def pick(have, d):
     for f in FALLBACK[d]:
         if f in have: return f, False
     return next(iter(have)), False
+
+
+def glow(img, col):
+    """喺角色外面加 1 像素彩色外框。"""
+    import numpy as np
+    a = np.array(ImageOps.expand(img, 1, fill=(0, 0, 0, 0)))
+    al = a[:, :, 3] > 0
+    pad = np.pad(al, 1)
+    ring = ~al & (pad[:-2, 1:-1] | pad[2:, 1:-1] | pad[1:-1, :-2] | pad[1:-1, 2:])
+    a[ring] = (*col, 255)
+    return Image.fromarray(a, 'RGBA')
 
 
 def build_char(name, dex):
@@ -98,6 +111,7 @@ def build_char(name, dex):
                 fr = frames[src]
                 rows.append([ImageOps.mirror(x) for x in fr] if flip else fr)
         rows = [r + [r[-1]] * (n - len(r)) for r in rows]          # 格數唔夠就重複最後一格
+        if name in GLOW: rows = [[glow(x, GLOW[name]) for x in r] for r in rows]
         sheet, w, h, ax, ay = build_sheet(rows)
         sheet.save(os.path.join(out_dir, anim + '.png'), optimize=True)
         d = [DUR[anim]] * n
