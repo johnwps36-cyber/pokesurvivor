@@ -759,7 +759,39 @@
     c.fillStyle = '#e8202a';
     c.beginPath(); c.moveTo(70, 66); c.lineTo(56, 60); c.lineTo(62, 70); c.lineTo(70, 72); c.lineTo(78, 70); c.lineTo(84, 60); c.closePath(); c.fill();
   }
-  const GAUGE_ART = { 9002: drawMask, 9003: drawSpiral };
+  // 紅蓮螺巖：「已注入螺旋力」圓盤（Gemini 圖）。螺旋力由中心核心向外注入；滿咗會轉、核心發光
+  const spiralImg = new Image();
+  spiralImg.src = 'assets/custom/gauge_spiral.png';
+  function drawSpiralDisc(c, frac, ready, active, t) {
+    if (!spiralImg.complete || !spiralImg.naturalWidth) return drawSpiral(c, frac, ready, active, t);
+    c.clearRect(0, 0, 140, 140);
+    const rot = active ? t * 5 : ready ? t * 1.2 : 0;
+    const disc = () => { c.save(); c.translate(70, 70); c.rotate(rot); c.drawImage(spiralImg, -70, -70, 140, 140); c.restore(); };
+    // 未注入：暗淡
+    c.save(); c.globalAlpha = 0.22; disc(); c.restore();
+    // 已注入：由核心向外擴散
+    const R = 12 + 58 * Math.max(0, Math.min(1, frac));
+    c.save();
+    c.beginPath(); c.arc(70, 70, R, 0, 6.2832); c.clip();
+    disc();
+    c.restore();
+    // 注入前線：藍色光圈
+    if (frac > 0.02 && frac < 0.999) {
+      c.save(); c.strokeStyle = '#7fd8ff'; c.lineWidth = 3; c.shadowColor = '#2a9dff'; c.shadowBlur = 10;
+      c.beginPath(); c.arc(70, 70, R, 0, 6.2832); c.stroke(); c.restore();
+    }
+    // 滿咗 / 發動中：核心同外圈發光
+    if (ready || active) {
+      const p = 0.5 + Math.sin(t * 6) * 0.5;
+      c.save();
+      c.globalAlpha = 0.45 + p * 0.4; c.fillStyle = '#9fe8ff'; c.shadowColor = '#2a9dff'; c.shadowBlur = 20;
+      c.beginPath(); c.arc(70, 70, 10 + p * 4, 0, 6.2832); c.fill();
+      c.globalAlpha = 0.5 + p * 0.3; c.strokeStyle = '#7fd8ff'; c.lineWidth = 4;
+      c.beginPath(); c.arc(70, 70, 66, 0, 6.2832); c.stroke();
+      c.restore();
+    }
+  }
+  const GAUGE_ART = { 9002: drawMask, 9003: drawSpiralDisc };
 
   function makeBtn(id, onTap, onLong) {
     const b = document.createElement('button');
