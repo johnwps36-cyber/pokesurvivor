@@ -132,9 +132,12 @@
   }
 
   // 一道直線攻擊（新卍解第二道月牙、虛閃共用）
-  function strike(pl, ang, len, w, dmg, col, type) {
+  // 自訂光束顏色：虛閃紅黑、無月黑紫
+  G.VFX.PAL.cero = ['#1a0004', '#5a0010', '#c0102a', '#ff3048', '#ffd0d8'];
+  G.VFX.PAL.mugetsu = ['#000000', '#120820', '#2a1450', '#6a40c0', '#d8c8ff'];
+  function strike(pl, ang, len, w, dmg, col, type, pal) {
     const ca = Math.cos(ang), sa = Math.sin(ang);
-    G.FX.beam(pl.x, pl.y - G.LIFT, ang, len, w, col);
+    G.FX.beam(pl.x, pl.y - G.LIFT, ang, len, w, col, pal ? { pal } : undefined);
     const mx = pl.x + ca * len / 2, my = pl.y + sa * len / 2;
     for (const e of G.EnemyMgr.queryCircle(mx, my, len / 2 + w)) {
       if (e.dead) continue;
@@ -149,7 +152,7 @@
     for (const e of G.EnemyMgr.all().filter(e => !e.dead)) {
       e.hurt(e.boss ? e.maxHp * 0.35 : e.hp + 1, '#a0a0ff', e.x - pl.x, e.y - pl.y, 0, 'crit');
     }
-    for (let i = 0; i < 6; i++) G.FX.beam(pl.x, pl.y - G.LIFT, i * 1.047, 900, 60, '#1a0a20');
+    for (let i = 0; i < 6; i++) G.FX.beam(pl.x, pl.y - G.LIFT, i * 1.047, 900, 60, '#1a0a20', { pal: 'mugetsu' });
     G.FX.ring(pl.x, pl.y, 20, 900, '#000000', 1.0, 14);
   }
 
@@ -159,7 +162,7 @@
       .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y)).slice(0, n);
     hits.forEach((e, i) => setTimeout(() => {
       if (e.dead) return;
-      G.FX.beam(x, y - 12, Math.atan2(e.y - y, e.x - x), Math.hypot(e.x - x, e.y - y), 14, '#ffe14d');
+      G.FX.beam(x, y - 12, Math.atan2(e.y - y, e.x - x), Math.hypot(e.x - x, e.y - y), 14, '#ffe14d', { pal: 'electric', beam: 'lightning' });
       e.hurt(e.boss ? 400 : e.hp + 1, '#ffe14d', e.x - x, e.y - y, 60, 'crit');
       G.FX.burst(e.x, e.y - 10, '#ffe14d', 14, 200);
       x = e.x; y = e.y;
@@ -169,7 +172,7 @@
   function cero(pl) {
     const near = G.EnemyMgr.all().filter(e => !e.dead)
       .sort((a, b) => Math.hypot(a.x - pl.x, a.y - pl.y) - Math.hypot(b.x - pl.x, b.y - pl.y)).slice(0, 3);
-    for (const e of near) strike(pl, Math.atan2(e.y - pl.y, e.x - pl.x), 280, 22, 40 * pl.atk, '#ff3048', 'ghost');
+    for (const e of near) strike(pl, Math.atan2(e.y - pl.y, e.x - pl.x), 280, 22, 40 * pl.atk, '#ff3048', 'ghost', 'cero');
   }
 
   // ---------------- 月牙天衝：彎月刀氣（唔再係一條直線） ----------------
@@ -260,7 +263,6 @@
     S.lastKills = this.kills; S.lastBosses = this.bosses;
     if (S.formCd > 0) S.formCd = Math.max(0, S.formCd - dt);
     if (S.active) {
-      if (S.active.god) this.invuln = Math.max(this.invuln, 0.1);
       if (S.active.cero && (S.ceroT -= dt) <= 0) { S.ceroT = 0.7; cero(this); }
       if ((S.t -= dt) <= 0 || this.dead) end(this);
     }
@@ -268,6 +270,13 @@
     for (const f of forms(this)) if (!S.seen['f' + f.name]) { S.seen['f' + f.name] = 1; G.Spawner.say(f.name + ' 已解鎖！撳形態掣切換', 3, true); G.Game.flash(f.tint, 0.3); }
     for (const u of ults(this)) if (!S.seen['u' + u.name]) { S.seen['u' + u.name] = 1; G.Spawner.say('必殺「' + u.name + '」已解鎖！', 3, true); }
     return r;
+  };
+
+  // 無敵必殺：唔受傷（唔用 invuln，否則成段時間角色會一閃一閃）
+  const hurt = G.Player.prototype.hurt;
+  G.Player.prototype.hurt = function (...a) {
+    if (this === G.Game.player && S.active && S.active.god) return;
+    return hurt.apply(this, a);
   };
 
   const drw = G.Player.prototype.draw;

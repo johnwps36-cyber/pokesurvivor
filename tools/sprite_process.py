@@ -65,8 +65,18 @@ def frames_from_sheet(img, h, min_area_frac=0.01, by_row=False):
                 merged[-1][1] = c[1]
             else:
                 merged.append(c)
-        row_cells = []
+        # 兩格黐埋（例如倒地時隻角掂到隔籬格）：太闊就喺中間最少像素嗰度切開
+        split = []
         for c0, c1 in merged:
+            if c1 - c0 > (r1 - r0) * 1.9:
+                prof = band[:, c0:c1].sum(0)
+                lo, hi = int((c1 - c0) * 0.3), int((c1 - c0) * 0.7)
+                cut = c0 + lo + int(np.argmin(prof[lo:hi]))
+                split += [[c0, cut], [cut, c1]]
+            else:
+                split.append([c0, c1])
+        row_cells = []
+        for c0, c1 in split:
             sub = fg[r0:r1, c0:c1]
             ys, xs = np.where(sub)
             if len(ys) < min_area_frac * 0.2 * H * W: continue
