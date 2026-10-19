@@ -1,7 +1,7 @@
 /* ============ ultimate.js — 必殺技同形態切換（個人自玩 mod） ============
  * 必殺：打敗敵人儲計量，滿咗撳必殺掣發動（電腦：R）。
  *       計量未滿時撳必殺掣＝轉下一個已解鎖嘅必殺；長按都可以轉（電腦：T）。
- * 形態：有形態嘅角色（一護）會多一排形態掣（1、2、3），撳邊個就轉邊個，
+ * 形態：有形態嘅角色（一護、紅蓮螺巖）會多一排形態掣（1、2、3），撳邊個就轉邊個，
  *       唔會暫停遊戲，每次轉完有 3 秒冷卻（電腦：F 轉下一個）。
  * 其他寶可夢：通用必殺「全力爆發」，冇形態。
  * 造型圖：有對應編號嘅圖（例如 9101 = 卍解）就換圖，冇就用顏色光環頂住。
@@ -26,6 +26,17 @@
           say: '最後之月牙天衝・無月！' }
       ]
     },
+    9003: {
+      forms: [
+        { name: '紅蓮', lv: 1, dex: 9003, mods: {}, tint: '#e83020' },
+        { name: '超銀河', lv: 30, dex: 9201, mods: { dmg: 1.2, spd: 0.85 }, fan: 3, tint: '#ffc830' }
+      ],
+      ults: [
+        { name: '極巨鑽頭破', lv: 1, dur: 0.8, god: true, drill: true, tint: '#e83020', say: '極巨鑽頭破！' },
+        { name: '天元突破', lv: 60, dur: 15, mods: { dmg: 2.5 }, god: true, big: 1.6, drillNova: 8, finale: true,
+          form: 9202, tint: '#40ff70', say: '天元突破・紅蓮螺巖！' }
+      ]
+    },
     9001: {
       ults: [
         { name: '火雷神', lv: 1, dur: 8, mods: { dmg: 1.5, spd: 1.6, cd: 0.6 }, god: true, chain: 14, tint: '#ffd23f',
@@ -34,6 +45,71 @@
     }
   };
   const DUAL_MOVES = ['getsuga-tensho'];
+  const FAN_MOVES = ['drill-missile'];
+
+  // ---------------- 鑽頭（紅蓮螺巖） ----------------
+  // 像素鑽頭（向右，兩格輪住轉）：鑽頭飛彈、極巨鑽頭破、天元突破都用
+  G.VFX.SHAPES.drill = { w: 15, h: 9, dir: true, frames: 2, gen(P, f) {
+    P.fill((x, y) => {
+      const half = 4.2 * (1 - x / 14), d = Math.abs(y - 4);
+      if (x < 2 || d > half + 0.2) return null;
+      const stripe = (x + f * 2 + (y < 4 ? 0 : 1)) % 4 < 2;
+      return y < 4 ? (stripe ? 'w' : 'l') : (stripe ? 'l' : 'm');
+    });
+    for (let y = 1; y <= 7; y++) { P.set(0, y, 'd'); P.set(1, y, 'm'); }
+    P.outline();
+  } };
+  const forMove = G.VFX.forMove;
+  G.VFX.forMove = m => m && m.id === 'drill-missile' ? { proj: 'drill', pal: 'steel', trail: 'spark' } : forMove(m);
+
+  function spawnDrill(pl, ang, dmg, o = {}) {
+    const sp = o.speed || 300;
+    G.Projectiles.spawn({
+      x: pl.x + Math.cos(ang) * 3, y: pl.y + Math.sin(ang) * 3,
+      vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp,
+      dmg, r: o.size || 9, life: o.life || 0.8, pierce: o.pierce == null ? 3 : o.pierce,
+      color: '#cad6e2', homing: 0, hits: new Set(), vis: { proj: 'drill', pal: 'steel', trail: 'spark' },
+      ghost: false, owner: pl, burn: 0, poison: 0, slow: 0, knock: o.knock || 40, mtype: 'steel'
+    });
+  }
+
+  // 極巨鑽頭破：向前衝，沿路普通敵人一擊打倒，頭目扣 15% 血
+  function gigaDrill(pl) {
+    const ang = pl.aim, ca = Math.cos(ang), sa = Math.sin(ang), sx = pl.x, sy = pl.y;
+    let len = 0;
+    for (let d = 8; d <= 380; d += 8) {
+      if (!G.World.isFree(sx + ca * d, sy + sa * d, pl.r * 0.8, true)) break;
+      len = d;
+    }
+    for (let d = 0; d <= len; d += 18) G.FX.sp('drill', 'steel', sx + ca * d, sy + sa * d - G.LIFT * 0.6, { life: 0.35, angle: ang, scale: 3 });
+    G.FX.sp('drill', 'steel', sx + ca * (len + 20), sy + sa * (len + 20) - G.LIFT * 0.6, { life: 0.5, angle: ang, scale: 5 });
+    pl.x = sx + ca * len; pl.y = sy + sa * len;
+    G.World.collide(pl);
+    const W = 70;
+    for (const e of G.EnemyMgr.queryCircle(sx + ca * len / 2, sy + sa * len / 2, len / 2 + W)) {
+      if (e.dead) continue;
+      const px = e.x - sx, py = e.y - sy, along = px * ca + py * sa;
+      if (along < -e.r - 20 || along > len + e.r + 40 || Math.abs(-px * sa + py * ca) > W / 2 + e.r) continue;
+      e.hurt(e.boss ? e.maxHp * 0.15 : e.hp + 1, '#ff6040', ca, sa, 120, 'crit');
+    }
+    if (pl.anim && pl.anim.play) pl.anim.play('Attack', { speed: 1.5 });
+    G.Camera.kick(0.3);
+    G.FX.burst(pl.x, pl.y - 20, '#ffd060', 40, 300);
+  }
+
+  // 天元突破完結：清走全畫面普通敵人，頭目扣 40% 血
+  function tengenFinale(pl) {
+    for (const e of G.EnemyMgr.all().filter(e => !e.dead)) {
+      e.hurt(e.boss ? e.maxHp * 0.4 : e.hp + 1, '#40ff70', e.x - pl.x, e.y - pl.y, 0, 'crit');
+    }
+    for (let i = 0; i < 16; i++) {
+      const a = i / 16 * 6.2832;
+      G.FX.sp('drill', 'steel', pl.x + Math.cos(a) * 60, pl.y + Math.sin(a) * 60 - 20, { life: 0.8, angle: a, scale: 4, vx: Math.cos(a) * 500, vy: Math.sin(a) * 500 });
+    }
+    G.FX.ring(pl.x, pl.y, 20, 900, '#40ff70', 1.0, 14);
+    G.Game.flash('#40ff70', 0.6);
+    G.Camera.kick(0.5);
+  }
 
   function defaultUlt(pl) {
     const col = G.U.TYPE_COLOR[pl.mon.types[0]] || '#ffd23f';
@@ -121,10 +197,12 @@
     G.Audio.sfx('legend');
     if (u.nuke) nuke(pl);
     if (u.chain) chain(pl, u.chain);
+    if (u.drill) gigaDrill(pl);
   }
 
   function end(pl) {
     const u = S.active;
+    if (u.finale && !pl.dead) tengenFinale(pl);
     applyMods(pl, u.mods, false);
     S.active = null;
     restoreSprite(pl);
@@ -239,7 +317,17 @@
   const cast = G.Player.prototype.cast;
   G.Player.prototype.cast = function (m, ...a) {
     const r = cast.call(this, m, ...a);
-    if (this !== G.Game.player || !m || !DUAL_MOVES.includes(m.id)) return r;
+    if (this !== G.Game.player || !m) return r;
+    // 超銀河：鑽頭飛彈一次射三支（扇形）
+    if (FAN_MOVES.includes(m.id)) {
+      const f = curForm(this);
+      if (f && f.fan) for (let i = 1; i < f.fan; i++) {
+        const side = i % 2 ? 1 : -1, k = Math.ceil(i / 2);
+        spawnDrill(this, this.aim + side * k * 0.3, m.dmg * this.atk, { pierce: m.pierce, size: m.size, life: m.life, speed: m.speed });
+      }
+      return r;
+    }
+    if (!DUAL_MOVES.includes(m.id)) return r;
     // cast 之後即刻就係 Combat 嘅 beam()：嗰下改畫月牙
     moonNext = true;
     queueMicrotask(() => { moonNext = false; });
@@ -264,6 +352,11 @@
     if (S.formCd > 0) S.formCd = Math.max(0, S.formCd - dt);
     if (S.active) {
       if (S.active.cero && (S.ceroT -= dt) <= 0) { S.ceroT = 0.7; cero(this); }
+      if (S.active.drillNova && (S.ceroT -= dt) <= 0) {
+        S.ceroT = 1;
+        const n = S.active.drillNova, off = Math.random();
+        for (let i = 0; i < n; i++) spawnDrill(this, (i + off) / n * 6.2832, 40 * this.atk, { pierce: 6, size: 14, life: 1.2, speed: 340 });
+      }
       if ((S.t -= dt) <= 0 || this.dead) end(this);
     }
     // 新解鎖提示
@@ -281,6 +374,28 @@
 
   const drw = G.Player.prototype.draw;
   G.Player.prototype.draw = function (ctx) {
+    // 形態未有自己嘅圖：用形態顏色做光環
+    const fm = this === G.Game.player && !S.active && !this.dead ? curForm(this) : null;
+    if (fm && fm.dex !== this.mon.dex && this.dex !== fm.dex) {
+      ctx.save();
+      ctx.globalAlpha = 0.28 + Math.sin(performance.now() / 160) * 0.1;
+      ctx.fillStyle = fm.tint;
+      ctx.beginPath(); ctx.ellipse(this.x, this.y, this.r * 2.1, this.r * 0.9, 0, 0, 6.2832); ctx.fill();
+      ctx.restore();
+      if (Math.random() < 0.25) G.FX.burst(this.x + (Math.random() - 0.5) * 20, this.y - Math.random() * 36, fm.tint, 1, 50);
+    }
+    if (this === G.Game.player && S.active && S.active.big && !this.dead) {
+      // 天元突破：公仔放大（以腳底做中心）
+      const k = S.active.big;
+      ctx.save();
+      ctx.translate(this.x, this.y); ctx.scale(k, k); ctx.translate(-this.x, -this.y);
+      const r = drawUlt.call(this, ctx);
+      ctx.restore();
+      return r;
+    }
+    return drawUlt.call(this, ctx);
+  };
+  function drawUlt(ctx) {
     if (this === G.Game.player && S.active && !this.dead) {
       const u = S.active, t = performance.now() / 90;
       ctx.save();
@@ -291,7 +406,7 @@
       if (Math.random() < 0.5) G.FX.burst(this.x + (Math.random() - 0.5) * 20, this.y - Math.random() * 40, u.tint, 1, 60);
     }
     return drw.call(this, ctx);
-  };
+  }
 
   const startRun = G.Game.startRun;
   G.Game.startRun = function (...a) { const r = startRun.apply(this, a); reset(G.Game.player); return r; };

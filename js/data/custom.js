@@ -22,7 +22,11 @@
     { id: 'bankai-tensa', name: '卍解・天鎖斬月', type: 'ghost', kind: 'buff',
       desc: '無傷害：使用期間不斷累積速度。',
       cd: 0.85, stat: 'spd', amount: 0.14, dur: 8, stacks: 5,
-      ladderFrom: 'agility' }
+      ladderFrom: 'agility' },
+    { id: 'drill-missile', name: '鑽頭飛彈', type: 'steel', kind: 'projectile',
+      desc: '由手臂射出旋轉鑽頭，穿透敵人。',
+      cd: 1.0, dmg: 26, speed: 300, count: 1, spread: 0.12, pierce: 3, life: 0.8, size: 9, knock: 40,
+      ladderFrom: 'rock-throw', evo: ['螺旋鑽頭風暴', 'atk'] }
   ];
 
   const CUSTOM_CHARS = [
@@ -34,6 +38,11 @@
     { dex: 9002, name: '黑崎一護', types: ['ghost', 'fighting'],
       hp: 100, spd: 112, atk: 1.38,
       start: 'getsuga-tensho', sig: ['getsuga-tensho', 'bankai-tensa'],
+      traits: ['valiente', 'tenaz'],
+      sprite: 'custom' },
+    { dex: 9003, name: '紅蓮螺巖', types: ['steel', 'ground'],
+      hp: 120, spd: 100, atk: 1.35,
+      start: 'drill-missile', sig: ['drill-missile'],
       traits: ['valiente', 'tenaz'],
       sprite: 'custom' }
   ];
