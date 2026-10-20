@@ -895,7 +895,7 @@
         ultBtn.classList.toggle('art', !!theme);
         if (theme) theme(ultBtn.querySelector('.cx-art').getContext('2d'), frac, ready, !!S.active, performance.now() / 1000);
         ultBtn.querySelector('.cx-txt').innerHTML = S.active ? Math.ceil(S.t) + 's'
-          : theme ? `<small class="cx-name">${u.name}</small><b>${ready ? '發動！' : Math.floor(S.gauge) + '%'}</b>`
+          : theme ? ''
           : `${u.name}<small>${ready ? '發動！' : Math.floor(S.gauge) + '%'}</small>`;
         ultBtn.style.setProperty('--cx', (S.active || u).tint);
         // 揀緊邊個必殺：喺掣上面寫名（有幾個可以揀時加「⇄」）
@@ -936,10 +936,11 @@
       color: #fff; font: 700 14px/1.1 sans-serif; text-shadow: 1px 1px 0 #000; -webkit-user-select: none; user-select: none; }
     .cx-btn .cx-fill { position: absolute; left: 0; right: 0; bottom: 0; background: var(--cx, #ffd23f); opacity: .55; }
     .cx-btn .cx-txt { position: relative; text-align: center; padding: 0 4px; }
-    .cx-btn .cx-art { position: absolute; left: 14%; top: 3%; width: 72%; height: 72%; display: none; pointer-events: none; }
+    .cx-btn .cx-art { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: none; pointer-events: none; }
     .cx-btn.art .cx-art { display: block; }
     .cx-btn.art .cx-fill { display: none; }
-    .cx-btn.art { background: rgba(6,8,20,.82); }
+    .cx-btn.art { background: rgba(6,8,20,.35); border-width: 2px; }
+    .cx-btn.art.on .cx-txt { align-self: center; margin: 0; font-size: 18px; }
     .cx-btn.art .cx-txt { align-self: flex-end; margin-bottom: 2px; font-size: 12px; line-height: 1; text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; }
     .cx-btn.art .cx-txt b { display: block; }
     .cx-btn.art .cx-name { display: none; }

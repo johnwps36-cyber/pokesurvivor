@@ -37,7 +37,7 @@ SPLIT = {('gurren', 'idle_right'): (2, 1), ('gurren', 'walk_right'): (2, 1),
          ('chouginga', 'idle_right'): (2, 2), ('chouginga', 'shoot_down'): (2, 2), ('chouginga', 'shoot_right'): (2, 2),
          ('tengen', 'tengen_all'): (4, 1)}
 # 某啲造型畫大啲（例如超銀河：變身之後應該大過本體）：角色 -> 倍數
-SCALE = {'chouginga': 1.2, 'tengen': 1.35}
+SCALE = {'gurren': 1.2, 'chouginga': 1.44, 'tengen': 1.62}   # 紅蓮螺巖三個形態都大 20%
 # 只有正面待機嘅角色：其他方向用行路第 1 格
 IDLE_FROM_WALK = {'tengen'}
 # 外光（全身黑色嘅造型縮細之後會溶入背景）：角色 -> 外圈顏色
