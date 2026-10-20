@@ -637,7 +637,12 @@
     }
     // 新解鎖提示
     for (const f of forms(this)) if (!S.seen['f' + f.name]) { S.seen['f' + f.name] = 1; G.Spawner.say(f.name + ' 已解鎖！撳形態掣切換', 3, true); G.Game.flash(f.tint, 0.3); }
-    for (const u of ults(this)) if (!S.seen['u' + u.name]) { S.seen['u' + u.name] = 1; G.Spawner.say('必殺「' + u.name + '」已解鎖！', 3, true); }
+    ults(this).forEach((u, i) => {
+      if (S.seen['u' + u.name]) return;
+      S.seen['u' + u.name] = 1;
+      if (!S.active) S.ult = i;                 // 新解鎖嘅必殺自動揀咗
+      G.Spawner.say('必殺「' + u.name + '」已解鎖！（撳必殺掣轉換）', 3, true);
+    });
     return r;
   };
 
@@ -836,7 +841,7 @@
     document.body.appendChild(b);
     return b;
   }
-  let ultBtn = null, formBox = null, formFor = null;
+  let ultBtn = null, formBox = null, formFor = null, ultName = null;
   const RUNNING = ['playing', 'levelup', 'paused', 'choice', 'held'];
   function buildForms(pl) {
     formBox.innerHTML = '';
@@ -853,6 +858,10 @@
   function tick() {
     if (!ultBtn && document.body) {
       ultBtn = makeBtn('ult-btn', () => (S.gauge >= GAUGE_MAX ? activate() : cycleUlt()), cycleUlt);
+      ultName = document.createElement('div');
+      ultName.id = 'ult-name';
+      ultName.setAttribute('translate', 'no');
+      document.body.appendChild(ultName);
       formBox = document.createElement('div');
       formBox.id = 'form-box';
       formBox.setAttribute('translate', 'no');
@@ -877,7 +886,14 @@
           : theme ? `<small class="cx-name">${u.name}</small><b>${ready ? '發動！' : Math.floor(S.gauge) + '%'}</b>`
           : `${u.name}<small>${ready ? '發動！' : Math.floor(S.gauge) + '%'}</small>`;
         ultBtn.style.setProperty('--cx', (S.active || u).tint);
+        // 揀緊邊個必殺：喺掣上面寫名（有幾個可以揀時加「⇄」）
+        const many = ults(pl).length > 1;
+        ultName.textContent = (S.active || u).name + (many && !S.active ? ' ⇄' : '');
+        const r = ultBtn.getBoundingClientRect();
+        ultName.style.left = (r.left + r.width / 2) + 'px';
+        ultName.style.top = (r.top - 4) + 'px';
       }
+      ultName.style.display = show ? 'block' : 'none';
       if (hasForms) {
         if (formFor !== pl) buildForms(pl);
         const all = cfg(pl).forms;
@@ -918,7 +934,10 @@
     .cx-btn.art.on .cx-txt, .cx-btn.art.ready .cx-txt { font-size: 13px; }
     .cx-btn small { display: block; font-size: 10px; opacity: .85; margin-top: 2px; }
     #ult-btn { bottom: 96px; }
-    #form-box { position: fixed; right: max(18px, env(safe-area-inset-right)); bottom: 176px; z-index: 30;
+    #ult-name { position: fixed; z-index: 31; transform: translate(-50%, -100%); pointer-events: none; display: none;
+      font: 700 11px/1.2 sans-serif; color: #fff; white-space: nowrap; padding: 1px 6px; border-radius: 8px;
+      background: rgba(6,8,20,.75); text-shadow: 1px 1px 0 #000; }
+    #form-box { position: fixed; right: max(18px, env(safe-area-inset-right)); bottom: 192px; z-index: 30;
       display: none; flex-direction: column-reverse; gap: 6px; }
     .fx-btn { position: relative; width: 60px; height: 44px; border-radius: 10px; border: 2px solid var(--cx, #e8ecff);
       background: rgba(10,16,40,.75); color: #fff; overflow: hidden; padding: 0; touch-action: none;
@@ -931,7 +950,7 @@
     #ult-btn.ready { border-color: #ffd23f; animation: cx-pulse .7s ease-in-out infinite alternate; }
     #ult-btn.on { border-color: var(--cx, #ffd23f); }
     @keyframes cx-pulse { from { box-shadow: 0 0 6px 2px var(--cx, #ffd23f); } to { box-shadow: 0 0 22px 8px var(--cx, #ffd23f); } }
-    @media (orientation: portrait) { #ult-btn { bottom: 120px; } #form-box { bottom: 200px; } }
+    @media (orientation: portrait) { #ult-btn { bottom: 120px; } #form-box { bottom: 216px; } }
     #ult-title { position: fixed; inset: 0; z-index: 40; display: none; flex-direction: column; align-items: center;
       justify-content: center; pointer-events: none; background: radial-gradient(ellipse at center, rgba(0,0,0,.35), rgba(0,0,0,.85)); }
     #ult-title .ut-big { font: 900 clamp(48px, 13vw, 140px)/1 'Hiragino Mincho ProN','Noto Serif TC','Songti TC',serif;
