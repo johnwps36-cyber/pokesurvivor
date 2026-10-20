@@ -33,7 +33,7 @@
         { name: '天元', lv: 60, dex: 9202, mods: { dmg: 1.6, spd: 0.8, cd: 1.2 }, fan: 3, bigDrill: true, tint: '#40ff70' }
       ],
       ults: [
-        { name: '極巨鑽頭破', lv: 1, dur: 0.8, god: true, drill: true, tint: '#e83020', say: '極巨鑽頭破！' },
+        { name: '極巨鑽頭破', lv: 1, dur: 3.2, god: true, drill: 3, tint: '#e83020', say: '極巨鑽頭破！' },
         { name: '超天元突破', lv: 60, dur: 12, mods: { dmg: 2.5 }, god: true, planets: 0.8, finale: true, cosmos: true,
           intro: ['超天元突破', '紅蓮螺巖'], tint: '#40ffd0', say: '超天元突破・紅蓮螺巖！' }
       ]
@@ -98,6 +98,15 @@
     });
   }
 
+  function aimNearest(pl) {
+    let best = null, bd = 420 * 420;
+    for (const e of G.EnemyMgr.all()) {
+      if (e.dead) continue;
+      const d = (e.x - pl.x) ** 2 + (e.y - pl.y) ** 2;
+      if (d < bd) { bd = d; best = e; }
+    }
+    if (best) pl.aim = Math.atan2(best.y - pl.y, best.x - pl.x);
+  }
   // 極巨鑽頭破：向前衝，沿路普通敵人一擊打倒，頭目扣 15% 血
   function gigaDrill(pl) {
     const ang = pl.aim, ca = Math.cos(ang), sa = Math.sin(ang), sx = pl.x, sy = pl.y;
@@ -463,7 +472,7 @@
     G.Audio.sfx('legend');
     if (u.nuke) nuke(pl);
     if (u.chain) chain(pl, u.chain);
-    if (u.drill) gigaDrill(pl);
+    if (u.drill) { aimNearest(pl); gigaDrill(pl); S.drillN = u.drill - 1; S.drillT = 1; }
   }
 
   function end(pl) {
@@ -628,6 +637,9 @@
     if (S.formCd > 0) S.formCd = Math.max(0, S.formCd - dt);
     if (S.active) {
       if (S.active.cero && (S.ceroT -= dt) <= 0) { S.ceroT = 0.7; cero(this); }
+      if (S.active.drill && S.drillN > 0 && (S.drillT -= dt) <= 0) {   // 連續衝三次，每次對準最近嘅敵人
+        S.drillN--; S.drillT = 1; aimNearest(this); gigaDrill(this);
+      }
       if (S.active.planets && !S.finaleOn && (S.ceroT -= dt) <= 0) { S.ceroT = S.active.planets; throwNext(this); }
       if ((S.t -= dt) <= 0 || this.dead) {
         // 完結前：超巨型星球慢慢壓落嚟（期間仍然無敵）
