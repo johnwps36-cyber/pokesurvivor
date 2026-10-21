@@ -870,9 +870,11 @@
   function tick() {
     if (!ultBtn && document.body) {
       ultBtn = makeBtn('ult-btn', () => (S.gauge >= GAUGE_MAX ? activate() : cycleUlt()), cycleUlt);
-      ultName = document.createElement('div');
+      ultName = document.createElement('button');
       ultName.id = 'ult-name';
       ultName.setAttribute('translate', 'no');
+      // 撳必殺名就轉必殺（計量滿咗都轉得）；撳圓掣先係發動
+      ultName.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); cycleUlt(); });
       document.body.appendChild(ultName);
       formBox = document.createElement('div');
       formBox.id = 'form-box';
@@ -901,9 +903,10 @@
         // 揀緊邊個必殺：喺掣上面寫名（有幾個可以揀時加「⇄」）
         const many = ults(pl).length > 1;
         ultName.textContent = (S.active || u).name + (many && !S.active ? ' ⇄' : '');
+        ultName.style.pointerEvents = many && !S.active ? 'auto' : 'none';
         const r = ultBtn.getBoundingClientRect();
         ultName.style.left = (r.left + r.width / 2) + 'px';
-        ultName.style.top = (r.top - 4) + 'px';
+        ultName.style.top = (r.top - 6) + 'px';
       }
       ultName.style.display = show ? 'block' : 'none';
       if (hasForms) {
@@ -947,9 +950,10 @@
     .cx-btn.art.on .cx-txt, .cx-btn.art.ready .cx-txt { font-size: 13px; }
     .cx-btn small { display: block; font-size: 10px; opacity: .85; margin-top: 2px; }
     #ult-btn { bottom: 96px; }
-    #ult-name { position: fixed; z-index: 31; transform: translate(-50%, -100%); pointer-events: none; display: none;
-      font: 700 11px/1.2 sans-serif; color: #fff; white-space: nowrap; padding: 1px 6px; border-radius: 8px;
-      background: rgba(6,8,20,.75); text-shadow: 1px 1px 0 #000; }
+    #ult-name { position: fixed; z-index: 31; transform: translate(-50%, -100%); display: none; touch-action: none;
+      font: 700 12px/1.2 sans-serif; color: #fff; white-space: nowrap; padding: 4px 9px; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.5); background: rgba(6,8,20,.85); text-shadow: 1px 1px 0 #000; cursor: pointer; }
+    #ult-name:active { background: rgba(255,210,63,.4); }
     #form-box { position: fixed; right: max(18px, env(safe-area-inset-right)); bottom: 192px; z-index: 30;
       display: none; flex-direction: column-reverse; gap: 6px; }
     .fx-btn { position: relative; width: 60px; height: 44px; border-radius: 10px; border: 2px solid var(--cx, #e8ecff);

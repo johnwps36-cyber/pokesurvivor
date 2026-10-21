@@ -213,10 +213,16 @@
 
   function sevenAI(dt, e, pl) {
     // 企喺你側邊（咁成個身同七個頭都喺畫面入面）
-    const side = e.x >= pl.x ? 1 : -1;
-    const tx = pl.x + side * 165, ty = pl.y - 10;
+    // 每 5–7 秒轉位：左、右、斜上、斜下（轉位時行快啲）
+    Q.posT = (Q.posT || 0) - dt;
+    if (Q.posT <= 0 || !Q.pos) {
+      const opts = [[1, 0], [-1, 0], [0.8, -0.55], [-0.8, -0.55], [0.8, 0.45], [-0.8, 0.45]].filter(o => !Q.pos || o !== Q.pos);
+      Q.pos = G.U.pick(opts); Q.posT = G.U.rand(5, 7); Q.moving = 1.2;
+    }
+    if (Q.moving > 0) Q.moving -= dt;
+    const tx = pl.x + Q.pos[0] * 165, ty = pl.y + Q.pos[1] * 110 - 10;
     const [dx, dy] = G.U.norm(tx - e.x, ty - e.y), d = G.U.dist(e.x, e.y, tx, ty);
-    const spd = 70 + (7 - Q.heads) * 8;
+    const spd = (Q.moving > 0 ? 190 : 75) + (7 - Q.heads) * 8;
     if (d > 8) { e.x += dx * Math.min(spd * dt, d); e.y += dy * Math.min(spd * dt, d); }
     e.anim.loop(d > 8 ? 'Walk' : 'Idle');
     // 噴字：頭越少越快
