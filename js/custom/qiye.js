@@ -83,8 +83,19 @@
   }
 
   // ---------------- 受傷：七個頭逐個跌，打完變童軍 ----------------
+  // 柒爺戰冇小怪：打柒爺都會儲必殺（大約每 20 秒儲滿一次）
+  function charge(dealt) {
+    const U = G.CustomUlt && G.CustomUlt.state;
+    if (!U || U.active || dealt <= 0 || Q.calib > 0) return;
+    const per = Q.mode === 'seven' ? Q.segHp : Q.scoutHp / 3;   // 大約 8 秒嘅傷害
+    U.gauge = Math.min(100, U.gauge + dealt / per * 40);
+  }
   function bossHurt(e, amount, rest, orig) {
     if (Q.won || e.inv > 0 || Q.mode === 'cine') return;
+    const hp0 = e.hp;
+    try { return bossHurt2(e, amount, rest, orig); } finally { charge(hp0 - Math.max(0, e.hp)); }
+  }
+  function bossHurt2(e, amount, rest, orig) {
     if (Q.mode === 'seven') {
       if (Q.calib > 0) Q.calibDmg += Math.max(0, amount);
       const before = e.hp;
@@ -421,6 +432,7 @@
     for (const m of pl.moves) while (G.Moves.levelUp(m));
     pl.hp = pl.maxHp;
     Q.challenge = true;
+    if (G.CustomUlt) G.CustomUlt.fill();                     // 開打時必殺計量滿
     begin(pl, 60);
   }
 
