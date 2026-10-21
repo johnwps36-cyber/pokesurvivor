@@ -407,8 +407,8 @@
       const pl = G.Game.player;
       if (!pl) return;
       Q.challenge = true; Q.prep = 0;
-      // 40 級：8 張升級卡任揀，揀完先開打
-      pl.level = 32;
+      // 60 級（所有形態同必殺都解鎖）：8 張升級卡任揀，揀完先開打
+      pl.level = 52;
       for (let i = 0; i < 8; i++) G.Game.debugLevelUp();
       G.Spawner.say('打柒柒爺 Challenge：先揀 8 張升級卡', 3, true);
     }, 400);
@@ -455,7 +455,7 @@
     const best = bestTime();
     const ico = G.Icons && G.Icons.html ? G.Icons.html('trophy', 26) : '';
     menuBtn.innerHTML = `<span class="mi-ico">${ico}</span><span>打柒柒爺 Challenge</span>` +
-      `<small>${best != null ? '最快紀錄 ' + mmss(best) : '40 級起步・用你揀咗嘅夥伴'}</small>`;
+      `<small>${best != null ? '最快紀錄 ' + mmss(best) : '60 級起步・用你揀咗嘅夥伴'}</small>`;
   }
   const mIv = setInterval(() => { buildMenu(); if (menuBtn) clearInterval(mIv); }, 500);
 
