@@ -32,6 +32,7 @@
   const jUpdate = J.update;
   J.update = function (dt, pl, time) {
     if (Q.on) { tick(dt, pl); return; }
+    if (Q.challenge) { prepTick(dt, pl); return; }
     const r = jUpdate.apply(this, arguments);
     const s = J.summary();
     if (s && s.time >= TRIGGER && !Q.done && !G.Coop.active && pl && !pl.dead) begin(pl, s.time);
@@ -42,6 +43,8 @@
   J.drawAir = function (ctx) { if (Q.on) { drawAir(ctx); return; } return jDrawAir.apply(this, arguments); };
   J.drawOverlay = function (ctx, w, h) { if (Q.on) return; return jDrawOverlay(ctx, w, h); };
   function jDrawOverlay(ctx, w, h) { return jOverlay.call(J, ctx, w, h); }
+  const activeGet = Object.getOwnPropertyDescriptor(J, 'active').get;
+  Object.defineProperty(J, 'active', { configurable: true, get() { return Q.on || Q.challenge || activeGet.call(J); } });
   const musicGet = Object.getOwnPropertyDescriptor(J, 'music').get;
   Object.defineProperty(J, 'music', { configurable: true, get() { return Q.on ? (G.CustomUlt.inCine ? null : 'boss') : musicGet.call(J); } });
 
@@ -56,7 +59,8 @@
     // 血量：審判期間每秒傷害 × 秒數（全場淨係佢一隻，所以大約幾耐打得死）
     const dps = Math.max(600, Q.dmgSum / Math.max(30, survived));
     Q.segHp = Math.round(Math.max(9000, dps * 7));        // 每個頭大約 7 秒
-    G.CustomUlt.cine(2.2, ['柒爺', '最終頭目・降臨'], () => spawn(pl, dps));
+    if (Q.challenge) Q.segHp = 1e7;                       // Challenge：頭 5 秒量度你嘅傷害先定血量
+    G.CustomUlt.cine(2.2, Q.challenge ? ['打柒柒爺', 'Challenge 開始！'] : ['柒爺', '最終頭目・降臨'], () => spawn(pl, dps));
     G.Audio.sfx('boss');
   }
 
@@ -69,6 +73,7 @@
     e.atkType = null;
     e.r = 40; e.bodyH = 170; e.flying = true; e.qiye = true;
     e.scale = 1;
+    Q.calib = Q.challenge ? 5 : 0; Q.calibDmg = 0; Q.chT = 0;
     Q.boss = e; Q.mode = 'seven'; Q.heads = 7; Q.t = 0; Q.atkT = 1.5; Q.skillT = 4; Q.scoutHp = Math.round(Math.max(12000, dps * 22));
     e.drop = 1;                               // 由天跌落
     e.touchCd = 3;
@@ -81,6 +86,7 @@
   function bossHurt(e, amount, rest, orig) {
     if (Q.won || e.inv > 0 || Q.mode === 'cine') return;
     if (Q.mode === 'seven') {
+      if (Q.calib > 0) Q.calibDmg += Math.max(0, amount);
       const before = e.hp;
       orig.call(e, Math.min(amount, e.hp - 1), ...rest);
       const left = Math.max(0, Math.ceil(e.hp / Q.segHp - 1e-6));
@@ -140,7 +146,13 @@
     G.Game.flash('#ffffff', 0.8);
     G.Camera.kick(1.2);
     for (let i = 0; i < 6; i++) G.FX.ring(e.x, e.y, 10 + i * 20, 300 + i * 120, i % 2 ? '#ffd23f' : '#ffffff', 0.6 + i * 0.2, 6);
-    setTimeout(() => G.CustomUlt.cine(2.6, ['通關！', '柒爺被你打低咗'], () => { G.Game.quit(); }), 1200);
+    let sub = '柒爺被你打低咗';
+    if (Q.challenge) {
+      const t = Q.chT, best = bestTime();
+      sub = '用咗 ' + mmss(t) + (best == null || t < best ? '・新紀錄！' : '・最快 ' + mmss(best));
+      if (best == null || t < best) try { localStorage.setItem(BEST_KEY, String(t)); } catch (err) { /* 冇 storage */ }
+    }
+    setTimeout(() => G.CustomUlt.cine(2.6, ['通關！', sub], () => { G.Game.quit(); }), 1200);
   }
 
   // ---------------- 每幀 ----------------
@@ -153,6 +165,15 @@
     for (const f of Q.flying) { f.t += dt; f.x += f.vx * dt; f.y += f.vy * dt; f.vy += 700 * dt; f.rot += dt * 8; }
     Q.flying = Q.flying.filter(f => f.t < 1.6);
     if (!e || e.dead || Q.won) return;
+    if (Q.challenge && e.drop <= 0 && Q.mode !== 'cine') { Q.chT += dt; timerShow(); }
+    if (Q.calib > 0 && e.drop <= 0 && (Q.calib -= dt) <= 0) {
+      // 頭 5 秒嘅傷害 → 七個頭合共大約 60 秒，童軍大約 25 秒
+      const dps = Math.max(300, Q.calibDmg / 5);
+      Q.segHp = Math.round(dps * 8.5);
+      Q.scoutHp = Math.round(dps * 25);
+      const done = Q.calibDmg;
+      e.maxHp = Q.segHp * 7; e.hp = Math.max(1, e.maxHp - done);
+    }
     if (e.inv > 0) e.inv -= dt;
     if (e.drop > 0) {                          // 從天而降
       e.drop -= dt * 1.4;
@@ -370,9 +391,86 @@
   const startRun = G.Game.startRun;
   G.Game.startRun = function (...a) {
     Object.assign(Q, { on: false, done: false, boss: null, mode: null, dmgSum: 0, words: [], ropes: [], bubbles: [], flying: [],
-                       heads: 7, won: false });
+                       heads: 7, won: false, challenge: false, prep: 0, calib: 0 });
+    timerHide();
     return startRun.apply(this, a);
   };
 
-  G.Qiye = { get state() { return Q; }, debug(pl) { begin(pl || G.Game.player, 120); } };
+  // ---------------- 打柒柒爺 Challenge ----------------
+  const BEST_KEY = 'qiye_challenge_best';
+  const mmss = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
+  function bestTime() { try { const v = parseFloat(localStorage.getItem(BEST_KEY)); return isFinite(v) ? v : null; } catch (e) { return null; } }
+
+  function challenge() {
+    G.Flow.play();
+    setTimeout(() => {
+      const pl = G.Game.player;
+      if (!pl) return;
+      Q.challenge = true; Q.prep = 0;
+      // 40 級：8 張升級卡任揀，揀完先開打
+      pl.level = 32;
+      for (let i = 0; i < 8; i++) G.Game.debugLevelUp();
+      G.Spawner.say('打柒柒爺 Challenge：先揀 8 張升級卡', 3, true);
+    }, 400);
+  }
+  // 揀完卡（返到遊戲 1 秒）→ 招式全滿級 → 柒爺登場
+  function prepTick(dt, pl) {
+    if (!pl || pl.dead || G.Game.state !== 'playing') { Q.prep = 0; return; }
+    Q.prep += dt;
+    if (Q.prep < 1) return;
+    for (const m of pl.moves) while (G.Moves.levelUp(m));
+    pl.hp = pl.maxHp;
+    Q.challenge = true;
+    begin(pl, 60);
+  }
+
+  let timerEl = null;
+  function timerShow() {
+    if (!timerEl) {
+      timerEl = document.createElement('div');
+      timerEl.id = 'qiye-timer'; timerEl.setAttribute('translate', 'no');
+      document.body.appendChild(timerEl);
+    }
+    const best = bestTime();
+    timerEl.innerHTML = `打柒柒爺 <b>${mmss(Q.chT)}</b>` + (best != null ? ` <small>最快 ${mmss(best)}</small>` : '');
+    timerEl.style.display = G.Game.state === 'over' || G.Game.state === 'ui' ? 'none' : 'block';
+  }
+  function timerHide() { if (timerEl) timerEl.style.display = 'none'; }
+  const endHide = setInterval(() => { if (timerEl && (G.Game.state === 'over' || G.Game.state === 'ui')) timerHide(); }, 500);
+
+  // 主選單：「自製角色」下面加一個大掣
+  let menuBtn = null;
+  function buildMenu() {
+    const play = document.querySelector('#scr-menu .menu-item.play');
+    if (!play || menuBtn) return;
+    menuBtn = document.createElement('button');
+    menuBtn.id = 'qiye-btn'; menuBtn.className = 'menu-item'; menuBtn.setAttribute('translate', 'no'); menuBtn.dataset.sfx = 'confirm';
+    menuBtn.onclick = e => { e.stopPropagation(); challenge(); };
+    play.insertAdjacentElement('afterend', menuBtn);
+    refreshMenu();
+    new MutationObserver(refreshMenu).observe(document.getElementById('scr-menu'), { attributes: true, attributeFilter: ['class'] });
+  }
+  function refreshMenu() {
+    if (!menuBtn) return;
+    const best = bestTime();
+    const ico = G.Icons && G.Icons.html ? G.Icons.html('trophy', 26) : '';
+    menuBtn.innerHTML = `<span class="mi-ico">${ico}</span><span>打柒柒爺 Challenge</span>` +
+      `<small>${best != null ? '最快紀錄 ' + mmss(best) : '40 級起步・用你揀咗嘅夥伴'}</small>`;
+  }
+  const mIv = setInterval(() => { buildMenu(); if (menuBtn) clearInterval(mIv); }, 500);
+
+  const css = document.createElement('style');
+  css.textContent = `
+    #qiye-btn { grid-column: 1 / -1; border-color: #ff4a4a !important; background: linear-gradient(#5a1010, #2a0608) !important;
+      color: #ffd8d8 !important; }
+    #qiye-btn small { color: #ffbcbc; }
+    #qiye-timer { position: fixed; left: max(12px, env(safe-area-inset-left)); top: max(64px, calc(env(safe-area-inset-top) + 58px));
+      z-index: 25; display: none; pointer-events: none; padding: 3px 12px; border-radius: 10px;
+      background: rgba(40,4,8,.75); border: 2px solid #ff4a4a; color: #fff; font: 700 14px/1.3 sans-serif; text-shadow: 1px 1px 0 #000; }
+    #qiye-timer b { color: #ffd23f; font-size: 16px; }
+    #qiye-timer small { color: #ffcfcf; font-size: 11px; margin-left: 4px; }
+  `;
+  document.head.appendChild(css);
+
+  G.Qiye = { get state() { return Q; }, debug(pl) { begin(pl || G.Game.player, 120); }, challenge };
 })();
